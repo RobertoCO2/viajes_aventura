@@ -116,3 +116,123 @@ class Destino:
     def deshabilitar(self) -> None:
         self._disponible = False
 
+class Paquete:
+    """Estructura comercial que combina entre 2 y 5 destinos y congela el precio publicado."""
+    def __init__(self, id_paquete: int, nombre: str, fecha_salida: date, fecha_regreso: date, 
+                 cupo_maximo: int, destinos: List[Destino], margen_operacion: float = 0.20, 
+                 precio_publicado: Optional[float] = None):
+        
+        if len(destinos) < 2 or len(destinos) > 5:
+            raise ValueError("Un paquete debe incluir entre 2 y 5 destinos sin repetir.")
+
+        if fecha_regreso <= fecha_salida:
+            raise ValueError("La fecha de regreso debe ser posterior a la de salida.")
+
+        self._id_paquete = id_paquete
+        self._nombre = nombre.strip()
+        self._fecha_salida = fecha_salida
+        self._fecha_regreso = fecha_regreso
+        self._cupo_maximo = int(cupo_maximo)
+        self._destinos = destinos
+        self._margen_operacion = float(margen_operacion)
+
+        if precio_publicado is not None:
+            self._precio_publicado = float(precio_publicado)
+        else:
+            self._precio_publicado = self.calcular_precio_base()
+
+    @property
+    def id_paquete(self) -> int:
+        return self._id_paquete
+
+    @property
+    def nombre(self) -> str:
+        return self._nombre
+
+    @property
+    def fecha_salida(self) -> date:
+        return self._fecha_salida
+
+    @property
+    def fecha_regreso(self) -> date:
+        return self._fecha_regreso
+
+    @property
+    def cupo_maximo(self) -> int:
+        return self._cupo_maximo
+
+    @property
+    def destinos(self) -> List[Destino]:
+        return self._destinos
+
+    @property
+    def precio_publicado(self) -> float:
+        return self._precio_publicado
+
+    def calcular_precio_base(self) -> float:
+        suma_costos = sum(d.costo_base for d in self._destinos)
+        return round(suma_costos * (1.0 + self._margen_operacion), 2)
+
+    def obtener_cupo_disponible(self, reservas_actuales: int) -> int:
+        return max(0, self._cupo_maximo - reservas_actuales)
+
+    def es_valido_para_reserva(self) -> bool:
+        return self._fecha_salida >= date.today()
+
+
+class Reserva:
+    """Transaccion de compra emitida por un cliente para un paquete especifico."""
+    def __init__(self, id_reserva: int, cliente: Cliente, paquete: Paquete, 
+                 cantidad_personas: int, fecha_emision: Optional[date] = None, 
+                 total_cobrado: Optional[float] = None, estado: str = "Confirmada"):
+        
+        if cantidad_personas < 1:
+            raise ValueError("La cantidad de personas por reserva debe ser al menos 1.")
+
+        if not paquete.es_valido_para_reserva():
+            raise ValueError("No se aceptan reservas para paquetes con fecha expirada.")
+
+        self._id_reserva = id_reserva
+        self._cliente = cliente
+        self._paquete = paquete
+        self._cantidad_personas = int(cantidad_personas)
+        self._fecha_emision = fecha_emision if fecha_emision else date.today()
+        self._estado = estado
+
+        if total_cobrado is not None:
+            self._total_cobrado = float(total_cobrado)
+        else:
+            self._total_cobrado = round(paquete.precio_publicado * cantidad_personas, 2)
+
+    @property
+    def id_reserva(self) -> int:
+        return self._id_reserva
+
+    @property
+    def cliente(self) -> Cliente:
+        return self._cliente
+
+    @property
+    def paquete(self) -> Paquete:
+        return self._paquete
+
+    @property
+    def cantidad_personas(self) -> int:
+        return self._cantidad_personas
+
+    @property
+    def fecha_emision(self) -> date:
+        return self._fecha_emision
+
+    @property
+    def total_cobrado(self) -> float:
+        return self._total_cobrado
+
+    @property
+    def estado(self) -> str:
+        return self._estado
+
+    def obtener_detalle_reserva(self) -> str:
+        return (f"Reserva N°{self._id_reserva} | Cliente: {self._cliente.nombre_completo} "
+                f"({self._cliente.obtener_rut_enmascarado()}) | Paquete: {self._paquete.nombre} | "
+                f"Personas: {self._cantidad_personas} | Total: ${self._total_cobrado:,.0f}")
