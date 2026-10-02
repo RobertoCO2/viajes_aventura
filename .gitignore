@@ -1,0 +1,10 @@
+# Excluir base de datos 
+*.db
+*.sqlite3
+
+# Excuir archivos temporales de Python
+__pycache__/
+*.pyc
+
+# Excluir entornos virtuales
+venv/
