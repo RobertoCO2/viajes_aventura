@@ -87,6 +87,7 @@ def menu_principal():
                 for d in destinos:
                     estado_str = "Disponible" if d.disponible else "No disponible"
                     print(f" ID #{d.id_destino}: {d.nombre} ({d.zona}) | Duración: {d.duracion_dias} días | Costo Base: ${d.costo_base:,.0f} | Estado: {estado_str}")
+                    input("\n Presione Enter para continuar...")
 
             elif opcion == "4":
                 print("\n ¡Gracias por usar el sistema de Viajes Aventura!")
@@ -99,7 +100,8 @@ def menu_principal():
                     for d in destinos:
                         estado_str = "Disponible" if d.disponible else "No disponible"
                         print(f" ID #{d.id_destino}: {d.nombre} ({d.zona}) | Duración: {d.duracion_dias} días | Costo Base: ${d.costo_base:,.0f} | Estado: {estado_str}")
-            
+                    input("\n Presione Enter para continuar...")
+
                 elif opcion == "2":
                     print("\n--- CREAR PAQUETE Y EMITIR RESERVA ---")
                     try:
@@ -135,15 +137,16 @@ def menu_principal():
             
                 elif opcion == "3":
                     cliente_actual = None
+                    estado_str = "Disponible" if d.disponible else "No Disponible"
                     print(" Sesión cerrada correctamente.")
-            
+                    input("\n Presione Enter para continuar...")
+
                 elif opcion == "4":
                     print("\n ¡Gracias por usar el sistema de Viajes Aventura!")
                     sys.exit(0)
             
-            
-            if __name__ == "__main__":
-                menu_principal()
+if __name__ == "__main__":
+    menu_principal()
             
             
        
