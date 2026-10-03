@@ -151,4 +151,48 @@ class BaseDatos:
                 destinos.append(Destino(row[0], row[1], row[2], row[3], row[4], row[5], bool(row[6])))
         return destinos
 
+    def guardar_paquete(self, paquete: Paquete) -> int:
+        """Registra un paquete y sus destinos en la tabla intermedia."""
+        query_paquete = """
+            INSERT INTO paquetes (nombre, fecha_salida, fecha_regreso, cupo_maximo, precio_publicado)
+            VALUES (?, ?, ?, ?, ?)
+        """
+        with self.obtener_conexion() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query_paquete, (
+                paquete.nombre,
+                paquete.fecha_salida.isoformat(),
+                paquete.fecha_regreso.isoformat(),
+                paquete.cupo_maximo,
+                paquete.precio_publicado
+            ))
+            id_paquete = cursor.lastrowid
+            paquete._id_paquete = id_paquete
+
+            query_intermedia = "INSERT INTO paquete_destino (id_paquete, id_destino) VALUES (?, ?)"
+            for dest in paquete.destinos:
+                cursor.execute(query_intermedia, (id_paquete, dest.id_destino))
+
+            conn.commit()
+            return id_paquete
+
+    def guardar_reserva(self, reserva: Reserva) -> int:
+        """Registra una reserva congelando el monto total."""
+        query = """
+            INSERT INTO reservas (id_usuario, id_paquete, cantidad_personas, fecha_emision, total_cobrado, estado)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """
+        with self.obtener_conexion() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (
+                reserva.cliente.id_usuario,
+                reserva.paquete.id_paquete,
+                reserva.cantidad_personas,
+                reserva.fecha_emision.isoformat(),
+                reserva.total_cobrado,
+                reserva.estado
+            ))
+            conn.commit()
+            reserva._id_reserva = cursor.lastrowid
+            return cursor.lastrowid
   
