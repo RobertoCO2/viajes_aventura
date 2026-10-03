@@ -36,7 +36,7 @@ def menu_principal():
         else:
             print("1. Registrarse como Cliente")
             print("2. Iniciar Sesión")
-            print("3. Ver Catálogo de Destinos (Modo Invitado)")
+            print("3. Ver Catálogo de Destinos (Visitas)")
             print("4. Salir")
 
         opcion = input("\nSeleccione una opción (1-4): ").strip()
@@ -54,9 +54,10 @@ def menu_principal():
                     cliente_nuevo = Cliente(0, nombre, email, rut, telefono, clave_raw=clave)
                     id_ingresado = db.registrar_cliente(cliente_nuevo)
                     print(f" ¡Cliente registrado exitosamente con ID #{id_ingresado}!")
+                    
                 except Exception as e:
                     print(f" Error al registrar cliente: {e}")
-
+                   
             elif opcion == "2":
                 print("\n--- INICIO DE SESIÓN ---")
                 email = input("Correo electrónico: ").strip()
@@ -93,60 +94,63 @@ def menu_principal():
                 print("\n ¡Gracias por usar el sistema de Viajes Aventura!")
                 sys.exit(0)
 
-            else:
-                if opcion == "1":
-                    print("\n--- CATÁLOGO DE DESTINOS ---")
-                    destinos = db.obtener_todos_los_destinos()
-                    for d in destinos:
-                        estado_str = "Disponible" if d.disponible else "No disponible"
-                        print(f" ID #{d.id_destino}: {d.nombre} ({d.zona}) | Duración: {d.duracion_dias} días | Costo Base: ${d.costo_base:,.0f} | Estado: {estado_str}")
-                    input("\n Presione Enter para continuar...")
+        else:
+            if opcion == "1":
+                print("\n--- CATÁLOGO DE DESTINOS ---")
+                destinos = db.obtener_todos_los_destinos()
+                for d in destinos:
+                    estado_str = "Disponible" if d.disponible else "No disponible"
+                    print(f" ID #{d.id_destino}: {d.nombre} ({d.zona}) | Duración: {d.duracion_dias} días | Costo Base: ${d.costo_base:,.0f} | Estado: {estado_str}")
+                input("\n Presione Enter para continuar...")
 
-                elif opcion == "2":
-                    print("\n--- CREAR PAQUETE Y EMITIR RESERVA ---")
-                    try:
-                        destinos_disponibles = [d for d in db.obtener_todos_los_destinos() if d.disponible]
-                        if len(destinos_disponibles) < 2:
-                            print(" Se requieren al menos 2 destinos disponibles en la BD para crear un paquete.")
-                            continue
-            
-                        nombre_paquete = input("Nombre para tu Paquete Turístico: ").strip()
-                        cupo_max = int(input("Cupo máximo de personas para el paquete: "))
-            
-                        fecha_salida = date.today() + timedelta(days=15)
-                        fecha_regreso = fecha_salida + timedelta(days=5)
-            
-                        # Combinar los dos primeros destinos (Regla R3: 2 a 5 destinos)
-                        destinos_elegidos = [destinos_disponibles[0], destinos_disponibles[1]]
-                        paquete = Paquete(0, nombre_paquete, fecha_salida, fecha_regreso, cupo_max, destinos_elegidos)
-                        id_paq = db.guardar_paquete(paquete)
-            
-                        print(f" Paquete '{paquete.nombre}' guardado en BD con ID #{id_paq}.")
-                        print(f" Precio publicado por persona (Costo Base + 20% margen R6): ${paquete.precio_publicado:,.0f}")
-            
-                        cant_personas = int(input("¿Para cuántas personas deseas reservar?: "))
-            
-                        reserva = Reserva(0, cliente_actual, paquete, cant_personas)
-                        id_res = db.guardar_reserva(reserva)
-            
-                        print("\n ¡RESERVA EMITIDA Y CONGELADA EXITOSAMENTE! ")
-                        print(reserva.obtener_detalle_reserva())
-            
-                    except Exception as e:
-                        print(f" Error al procesar reserva: {e}")
-            
-                elif opcion == "3":
-                    cliente_actual = None
-                    estado_str = "Disponible" if d.disponible else "No Disponible"
-                    print(" Sesión cerrada correctamente.")
-                    input("\n Presione Enter para continuar...")
+            elif opcion == "2":
+                print("\n--- CREAR PAQUETE Y EMITIR RESERVA ---")
+                try:
+                    destinos_disponibles = [d for d in db.obtener_todos_los_destinos() if d.disponible]
+                    if len(destinos_disponibles) < 2:
+                        print(" Se requieren al menos 2 destinos disponibles para crear un paquete.")
+                        continue
+        
+                    nombre_paquete = input("Nombre para tu Paquete Turístico: ").strip()
+                    cupo_max = int(input("Cupo máximo de personas para el paquete: "))
+        
+                    fecha_salida = date.today() + timedelta(days=15)
+                    fecha_regreso = fecha_salida + timedelta(days=5)
+        
+                    # Combinar los dos primeros destinos (Regla R3: 2 a 5 destinos)
+                    destinos_elegidos = [destinos_disponibles[0], destinos_disponibles[1]]
+                    paquete = Paquete(0, nombre_paquete, fecha_salida, fecha_regreso, cupo_max, destinos_elegidos)
+                    id_paq = db.guardar_paquete(paquete)
+        
+                    print(f" Paquete '{paquete.nombre}' guardado con ID #{id_paq}.")
+                    print(f" Precio publicado por persona (Costo Base + 20% margen): ${paquete.precio_publicado:,.0f}")
+        
+                    cant_personas = int(input("¿Para cuántas personas deseas reservar?: "))
+        
+                    reserva = Reserva(0, cliente_actual, paquete, cant_personas)
+                    id_res = db.guardar_reserva(reserva)
+        
+                    print("\n ¡RESERVA EMITIDA Y CONGELADA EXITOSAMENTE! ")
+                    print(reserva.obtener_detalle_reserva())
+        
+                except Exception as e:
+                    print(f" Error al procesar reserva: {e}")
+                    input("\nPresione Enter para continuar...")
+                                            
+            elif opcion == "3":
+                cliente_actual = None
+                print(" Sesión cerrada correctamente.")
+                input("\n Presione Enter para continuar...")
 
-                elif opcion == "4":
-                    print("\n ¡Gracias por usar el sistema de Viajes Aventura!")
-                    sys.exit(0)
+            elif opcion == "4":
+                print("\n ¡Gracias por usar el sistema de Viajes Aventura!")
+                sys.exit(0)
             
 if __name__ == "__main__":
     menu_principal()
+
+
+
             
             
        
