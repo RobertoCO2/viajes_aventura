@@ -236,3 +236,7 @@ class Reserva:
         return (f"Reserva N°{self._id_reserva} | Cliente: {self._cliente.nombre_completo} "
                 f"({self._cliente.obtener_rut_enmascarado()}) | Paquete: {self._paquete.nombre} | "
                 f"Personas: {self._cantidad_personas} | Total: ${self._total_cobrado:,.0f}")
+
+    @property
+    def monto_total_congelado(self) -> float:
+        return self._paquete.precio_publicado * self._cantidad_personas
