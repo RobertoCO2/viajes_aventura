@@ -43,7 +43,7 @@ async function obtenerTipoCambio() {
     const respuesta = await fetch("https://mindicador.cl/api/dolar");
     if (respuesta.ok) {
       const datos = await respuesta.json();
-      tipoCambioUSD = datos.serie.valor;
+      tipoCambioUSD = datos.serie[0].valor;
       contenedor.innerText = `Tipo de Cambio Hoy: 1 USD = $${tipoCambioUSD.toLocaleString("es-CL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CLP`;
     } else {
       throw new Error("Respuesta no satisfactoria de la API");
@@ -81,20 +81,16 @@ function cargarCatalogoPaquetes() {
     const precioUSD = (paq.precio / tipoCambioUSD).toFixed(2);
     const card = document.createElement("div");
     card.className = "card";
-    let botonEliminar = "";
-    if (usuarioActual && usuarioActual.rol === "admin") {
-      botonEliminar = ``;
-    }
     card.innerHTML = `
       <h3>${paq.nombre}</h3>
       <p><strong>Fecha Salida:</strong> ${paq.fechaSalida}</p>
       <p><strong>Cupo Disponible:</strong> ${paq.cupo} personas</p>
       <p>$${paq.precio.toLocaleString("es-CL")} CLP <small>(USD $${precioUSD})</small></p>
-      ${botonEliminar}
     `;
     grid.appendChild(card);
   });
 }
+
 function poblarSelectPaquetes() {
   const select = document.getElementById("select-paquete");
   if (!select) return;
@@ -155,39 +151,6 @@ function crearNuevoPaquete(event) {
   poblarSelectPaquetes();
 }
 
-function eliminarPaquete(idPaquete) {
-  if (!usuarioActual || usuarioActual.rol !== "admin") return;
-  if (confirm("¿Esta seguro de que desea eliminar este paquete del catalogo?")) {
-    let paquetes = obtenerPaquetes();
-    paquetes = paquetes.filter(p => p.id !== idPaquete);
-    localStorage.setItem("paquetes_aventura", JSON.stringify(paquetes));
-    alert("Paquete eliminado del catalogo.");
-    cargarCatalogoPaquetes();
-    poblarSelectPaquetes();
-  }
-}
-
-function eliminarReserva(idReserva) {
-  if (!usuarioActual || usuarioActual.rol !== "admin") return;
-  if (confirm(`¿Esta seguro de cancelar y borrar la Reserva N° ${idReserva}?`)) {
-    let todasLasReservas = JSON.parse(localStorage.getItem("todas_las_reservas_aventura")) || [];
-    todasLasReservas = todasLasReservas.filter(r => r.id !== idReserva);
-    localStorage.setItem("todas_las_reservas_aventura", JSON.stringify(todasLasReservas));
-    alert("Reserva eliminada con exito.");
-    actualizarTablaReservas();
-  }
-}
-
-function abrirModal(idModal) {
-  const modal = document.getElementById(idModal);
-  if (modal) modal.classList.remove("hidden");
-}
-
-function cerrarModal(idModal) {
-  const modal = document.getElementById(idModal);
-  if (modal) modal.classList.add("hidden");
-}
-
 function registrarCliente(event) {
   event.preventDefault();
   const nombre = document.getElementById("reg-nombre").value.trim();
@@ -226,7 +189,9 @@ function actualizarVistaSesion() {
   const btnRegistro = document.getElementById("btn-registro");
   const btnLogout = document.getElementById("btn-logout");
   const adminPanel = document.getElementById("admin-panel");
+  const clientePanel = document.getElementById("cliente-panel");
   const thAcciones = document.getElementById("th-acciones");
+
   if (usuarioActual) {
     if (btnLogin) btnLogin.classList.add("hidden");
     if (btnRegistro) btnRegistro.classList.add("hidden");
@@ -234,27 +199,25 @@ function actualizarVistaSesion() {
       btnLogout.classList.remove("hidden");
       btnLogout.textContent = `Cerrar Sesion (${usuarioActual.nombre} - ${usuarioActual.rol.toUpperCase()})`;
     }
-    if (adminPanel) {
-      if (usuarioActual.rol === "admin") {
-        adminPanel.classList.remove("hidden");
-      } else {
-        adminPanel.classList.add("hidden");
-      }
-    }
-    if (thAcciones) {
-      if (usuarioActual.rol === "admin") {
-        thAcciones.classList.remove("hidden");
-      } else {
-        thAcciones.classList.add("hidden");
-      }
+
+    if (usuarioActual.rol === "admin") {
+      if (adminPanel) adminPanel.classList.remove("hidden");
+      if (clientePanel) clientePanel.classList.add("hidden");
+      if (thAcciones) thAcciones.classList.remove("hidden");
+    } else {
+      if (adminPanel) adminPanel.classList.add("hidden");
+      if (clientePanel) clientePanel.classList.remove("hidden");
+      if (thAcciones) thAcciones.classList.add("hidden");
     }
   } else {
     if (btnLogin) btnLogin.classList.remove("hidden");
     if (btnRegistro) btnRegistro.classList.remove("hidden");
     if (btnLogout) btnLogout.classList.add("hidden");
     if (adminPanel) adminPanel.classList.add("hidden");
+    if (clientePanel) clientePanel.classList.add("hidden");
     if (thAcciones) thAcciones.classList.add("hidden");
   }
+
   cargarCatalogoPaquetes();
   actualizarTablaReservas();
 }
@@ -297,7 +260,7 @@ function procesarReserva(event) {
   todasLasReservas.push(nuevaReserva);
   localStorage.setItem("todas_las_reservas_aventura", JSON.stringify(todasLasReservas));
   actualizarTablaReservas();
-  ñalert(`Reserva N° ${nuevaReserva.id} emitida con exito.\nMonto Total: $${totalCobrado.toLocaleString("es-CL")} CLP`);
+  alert(`Reserva N° ${nuevaReserva.id} emitida con exito.\nMonto Total: $${totalCobrado.toLocaleString("es-CL")} CLP`);
   document.getElementById("form-reserva").reset();
   calcularTotalReserva();
 }
@@ -329,12 +292,51 @@ function actualizarTablaReservas() {
       tdAccionAdmin = ``;
     }
     row.innerHTML = `
-      #${res.id} ${res.paquete} ${esAdmin ? `<br /><small>(${res.emailCliente})</small>` : ''}
-      ${res.pasajeros} persona(s)
-      $${res.total.toLocaleString("es-CL")} CLP
-      <strong>${res.estado}</strong>
-      ${tdAccionAdmin}
+      <td>#${res.id}</td>
+      <td>${res.paquete} ${esAdmin ? `<br /><small>(${res.emailCliente})</small>` : ''}</td>
+      <td>${res.pasajeros}</td>
+      <td>$${res.total.toLocaleString("es-CL")} CLP</td>
+      <td><strong>${res.estado}</strong></td>
+      <td>${tdAccionAdmin}</td>
     `;
     tbody.appendChild(row);
   });
+}
+
+function abrirModal(idModal) {
+  const modal = document.getElementById(idModal);
+  if (modal) modal.classList.remove("hidden");
+}
+
+function registrarCliente(event) {
+  event.preventDefault();
+  const nombre = document.getElementById("reg-nombre").value.trim();
+  const email = document.getElementById("reg-email").value.toLowerCase().trim();
+  const rut = document.getElementById("reg-rut").value.trim();
+  const esAdmin = email.includes("admin");
+  usuarioActual = { nombre: nombre, email: email, rut: rut, rol: esAdmin ? "admin" : "cliente" };
+  localStorage.setItem("usuario_aventura", JSON.stringify(usuarioActual));
+  cerrarModal("modal-registro");
+  actualizarVistaSesion();
+  alert(`Usuario ${nombre} (${usuarioActual.rol.toUpperCase()}) registrado e iniciado exitosamente.`);
+}
+
+function iniciarSesion(event) {
+  event.preventDefault();
+  const email = document.getElementById("login-email").value.toLowerCase().trim();
+  const nombreLimpio = email.split("@")[0];
+  const esAdmin = email.includes("admin");
+  usuarioActual = { nombre: nombreLimpio, email: email, rut: "11.***.***-1", rol: esAdmin ? "admin" : "cliente" };
+  localStorage.setItem("usuario_aventura", JSON.stringify(usuarioActual));
+  cerrarModal("modal-login");
+  actualizarVistaSesion();
+  alert(`Bienvenido de nuevo, ${usuarioActual.nombre} (${usuarioActual.rol.toUpperCase()}).`);
+}
+
+function cargarEstadoSesion() {
+  const sesionGuardada = localStorage.getItem("usuario_aventura");
+  if (sesionGuardada) {
+    usuarioActual = JSON.parse(sesionGuardada);
+    actualizarVistaSesion();
+  }
 }
