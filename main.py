@@ -1,60 +1,125 @@
-"""
-Módulo 3: main.py
-Programa Principal con Menú Interactivo de Consola.
-Caso de Estudio: Agencia Viajes Aventura
-"""
-import sys 
+import sys
 import time
-from datetime import date, timedelta
-from typing import List, Optional
-import getpass
-from modelos import Cliente, Destino, Paquete, Reserva
+from datetime import date, datetime, timedelta
+from modelos import Cliente, Administrador, Destino, Paquete, Reserva, ServicioMoneda
 from base_datos import BaseDatos
 
-# --- FUNCIÓN DE LECTURA DE CONTRASEÑA ENMASCARADA ---
-def leer_clave_efecto_mascara(prompt: str = "Contraseña: ") -> str:
-    """
-    Lee la contraseña por consola mostrando brevemente cada carácter (0.3s)
-    antes de convertirlo en un '#', manteniendo la máscara '######' en pantalla.
-    """
-    try:
-        import msvcrt, sys, time
-        print(prompt, end="", flush=True)
-        clave = ""
-        while True:
-            ch = msvcrt.getch()
-            if ch in (b"\r", b"\n"):  # Presionó Enter
-                print()
-                break
-            elif ch == b"\x08":  # Backspace
-                if len(clave) > 0:
-                    clave = clave[:-1]
-                    sys.stdout.write("\b \b")
-                    sys.stdout.flush()
-            elif ch == b"\x03":  # Ctrl + C
-                raise KeyboardInterrupt
-            else:
-                try:
-                    char_str = ch.decode("utf-8")
-                    clave += char_str
-                    sys.stdout.write(char_str)
-                    sys.stdout.flush()
-                    time.sleep(0.3)
-                    sys.stdout.write("\b#")
-                    sys.stdout.flush()
-                except UnicodeDecodeError:
-                    pass
-        return clave
-    except ImportError:
-        import getpass
+try:
+    import msvcrt
+    HAS_MSVCRT = True
+except ImportError:
+    HAS_MSVCRT = False
+    import getpass
+
+
+def leer_clave_enmascarada(prompt: str = "Contrasena: ") -> str:
+    """Lee la clave caracter por caracter: muestra la letra por 0.3s y la cambia a '#'."""
+    if not HAS_MSVCRT:
         return getpass.getpass(prompt)
+
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
+    clave = ""
+    while True:
+        ch = msvcrt.getch()
+
+        # Enter
+        if ch in (b'\r', b'\n'):
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+            break
+
+        # Backspace
+        elif ch == b'\b':
+            if len(clave) > 0:
+                clave = clave[:-1]
+                sys.stdout.write("\b \b")
+                sys.stdout.flush()
+
+        # Printables
+        elif ch >= b' ':
+            try:
+                char = ch.decode('utf-8')
+            except UnicodeDecodeError:
+                continue
+            clave += char
+            sys.stdout.write(char)
+            sys.stdout.flush()
+            time.sleep(0.3)
+            sys.stdout.write("\b#")
+            sys.stdout.flush()
+
+    return clave
+
+
+def inicializar_datos_demo(db: BaseDatos):
+    destinos = db.obtener_todos_los_destinos()
+    if not destinos:
+        db.guardar_destino(Destino(0, "Cajon del Maipo", "Region Metropolitana", "Trekking y termas", 1, 45000.0))
+        db.guardar_destino(Destino(0, "Salar de Surire", "Region de Arica y Parinacota", "Reserva nacional y flamencos", 3, 310000.0))
+        db.guardar_destino(Destino(0, "Valle del Elqui", "Region de Coquimbo", "Observacion astronomica y pisco", 2, 120000.0))
+        db.guardar_destino(Destino(0, "Parque Conguillio", "Region de La Araucania", "Araucarias y volcan Llaima", 3, 185000.0))
+
+    paquetes = db.obtener_todos_los_paquetes()
+    if not paquetes:
+        dest_actuales = db.obtener_todos_los_destinos()
+        if len(dest_actuales) >= 2:
+            p1 = Paquete(0, "Escapada Centro-Norte", date.today() + timedelta(days=20), date.today() + timedelta(days=25), 10, dest_actuales[:2])
+            db.guardar_paquete(p1)
+
+
+def leer_entero(mensaje: str, min_val: int = None) -> int:
+    while True:
+        try:
+            val = int(input(mensaje).strip())
+            if min_val is not None and val < min_val:
+                print(f"El valor debe ser al menos {min_val}.")
+                continue
+            return val
+        except ValueError:
+            print("Por favor, ingrese un numero entero valido.")
+
+
+def mostrar_catalogo_con_api(db: BaseDatos):
+    print("\n--- CATALOGO DE DESTINOS Y PAQUETES ---")
     
+    valor_dolar = ServicioMoneda.obtener_valor_dolar()
+    if valor_dolar:
+        print(f"[Tipo de Cambio Hoy] 1 USD = ${valor_dolar:,.2f} CLP\n")
+    else:
+        print("[Aviso] No se pudo obtener el tipo de cambio en vivo. Mostrando valores en CLP.\n")
+
+    print("--- DESTINOS DISPONIBLES ---")
+    destinos = db.obtener_todos_los_destinos()
+    for d in destinos:
+        estado_str = "Disponible" if d.disponible else "No disponible"
+        if valor_dolar:
+            costo_usd = d.costo_base / valor_dolar
+            print(f"ID #{d.id_destino}: {d.nombre} ({d.zona}) | ${d.costo_base:,.0f} CLP (USD ${costo_usd:,.2f}) | {estado_str}")
+        else:
+            print(f"ID #{d.id_destino}: {d.nombre} ({d.zona}) | ${d.costo_base:,.0f} CLP | {estado_str}")
+
+    print("\n--- PAQUETES PUBLICADOS ---")
+    paquetes = db.obtener_todos_los_paquetes()
+    if not paquetes:
+        print("No hay paquetes publicados actualmente.")
+    else:
+        for p in paquetes:
+            if valor_dolar:
+                precio_usd = p["precio_publicado"] / valor_dolar
+                print(f"ID #{p['id_paquete']}: {p['nombre']} | Salida: {p['fecha_salida']} | Precio/persona: ${p['precio_publicado']:,.0f} CLP (USD ${precio_usd:,.2f}) | Cupo: {p['cupo_maximo']}")
+            else:
+                print(f"ID #{p['id_paquete']}: {p['nombre']} | Salida: {p['fecha_salida']} | Precio/persona: ${p['precio_publicado']:,.0f} CLP | Cupo: {p['cupo_maximo']}")
+
+    input("\nPresione solo Enter para continuar...")
+
+
 def ejecutar_menu_cliente(db: BaseDatos, cliente_actual: Cliente) -> tuple:
     print("\n" + "="*50)
-    print("   AGENCIA DE VIAJES AVENTURA - SISTEMA DE RESERVAS")
+    print("   AGENCIA DE VIAJES AVENTURA - PORTAL CLIENTE")
     print("="*50)
-    print(f"Sesion activa: {cliente_actual.nombre_completo}")
-    print("1. Ver Catalogo de Destinos")
+    print(f"Sesion activa: {cliente_actual.nombre_completo} [RUT: {cliente_actual.obtener_rut_enmascarado()}]")
+    print("1. Ver Catalogo de Destinos y Paquetes (Precios CLP/USD)")
     print("2. Reservar Paquete Turistico")
     print("3. Ver Historial de Mis Reservas")
     print("4. Cerrar Sesion")
@@ -63,38 +128,57 @@ def ejecutar_menu_cliente(db: BaseDatos, cliente_actual: Cliente) -> tuple:
     opcion = input("\nSeleccione una opcion (1-5): ").strip()
 
     if opcion == "1":
-        mostrar_catalogo_visita(db)
+        mostrar_catalogo_con_api(db)
         return cliente_actual, False
 
     elif opcion == "2":
         try:
-            destinos = db.obtener_todos_los_destinos()
-            if len(destinos) < 2:
-                print("\nSe requieren al menos 2 destinos en la BD para cotizar un paquete.")
+            paquetes = db.obtener_todos_los_paquetes()
+            if not paquetes:
+                print("\nNo existen paquetes disponibles para reservar en este momento.")
                 input("\nPresione solo Enter para continuar...")
                 return cliente_actual, False
 
-            # Paquete publicado de catalogo
-            paquete = Paquete(
-                1,
-                "Escapada de Fin de Semana",
-                date.today() + timedelta(days=15),
-                date.today() + timedelta(days=20),
-                10,
-                destinos[:2]
-            )
+            print("\nPaquetes disponibles para reservar:")
+            for p in paquetes:
+                print(f"ID #{p['id_paquete']}: {p['nombre']} | Salida: {p['fecha_salida']} | Precio: ${p['precio_publicado']:,.0f} CLP")
 
-            print(f"\nPaquete Disponible: {paquete.nombre}")
-            print(f"Fecha de Salida: {paquete.fecha_salida} | Cupo Maximo: {paquete.cupo_maximo} personas")
-            print(f"Precio publicado por persona: ${paquete.precio_publicado:,.0f}")
+            id_paq = leer_entero("\nIngrese el ID del paquete que desea reservar: ", min_val=1)
+            paq_dict = next((p for p in paquetes if p["id_paquete"] == id_paq), None)
 
-            cant_personas = leer_entero("\n¿Para cuantas personas desea reservar?: ", min_val=1)
+            if not paq_dict:
+                print("\nID de paquete invalido.")
+                input("\nPresione solo Enter para continuar...")
+                return cliente_actual, False
 
-            reserva = Reserva(0, cliente_actual, paquete, cant_personas)
+            fecha_salida_dt = datetime.strptime(paq_dict["fecha_salida"], "%Y-%m-%d").date()
+            cant_personas = leer_entero("¿Para cuantas personas desea reservar?: ", min_val=1)
+
+            cupo_ocupado = db.obtener_cupo_reservado_paquete(id_paq)
+            cupo_disponible = paq_dict["cupo_maximo"] - cupo_ocupado
+
+            if cant_personas > cupo_disponible:
+                print(f"\nReserva rechazada: La cantidad solicitada ({cant_personas}) supera el cupo disponible ({cupo_disponible}).")
+                input("\nPresione solo Enter para continuar...")
+                return cliente_actual, False
+
+            destinos_dummy = [Destino(1, "Destino A", "Zona A", "Desc", 1, 1000.0), Destino(2, "Destino B", "Zona B", "Desc", 1, 1000.0)]
+            paquete_obj = Paquete(paq_dict["id_paquete"], paq_dict["nombre"], fecha_salida_dt, fecha_salida_dt + timedelta(days=5), paq_dict["cupo_maximo"], destinos_dummy, precio_publicado=paq_dict["precio_publicado"])
+
+            reserva = Reserva(0, cliente_actual, paquete_obj, cant_personas)
             id_reserva = db.guardar_reserva(reserva)
 
-            print("\n¡RESERVA EMITIDA Y CONFIRMADA EXITOSAMENTE!")
-            print(f"Reserva N°{id_reserva} | Pasajeros: {cant_personas} | Total Congelado: ${reserva.total_cobrado:,.0f}")
+            print("\n" + "="*50)
+            print("   RESERVA EMITIDA Y CONFIRMADA EXITOSAMENTE")
+            print("="*50)
+            print(f"Reserva N°           : #{id_reserva}")
+            print(f"Cliente              : {cliente_actual.nombre_completo} [RUT: {cliente_actual.obtener_rut_enmascarado()}]")
+            print(f"Paquete              : {paq_dict['nombre']}")
+            print(f"Cantidad Pasajeros   : {cant_personas} persona(s)")
+            print(f"Precio por Persona   : ${paq_dict['precio_publicado']:,.0f} CLP")
+            print("-" * 50)
+            print(f"MONTO TOTAL A PAGAR  : ${reserva.total_cobrado:,.0f} CLP")
+            print("="*50)
 
         except Exception as e:
             print(f"\nOcurrio un inconveniente al procesar la reserva: {e}")
@@ -109,11 +193,7 @@ def ejecutar_menu_cliente(db: BaseDatos, cliente_actual: Cliente) -> tuple:
             print("Usted no registra reservas actualmente en el sistema.")
         else:
             for r in reservas:
-                print(
-                    f"Reserva N°{r['id_reserva']} | Paquete: {r['paquete_nombre']} | "
-                    f"Personas: {r['cantidad_personas']} | Total: ${r['monto_total_congelado']:,.0f} | "
-                    f"Fecha: {r['fecha_salida']} | Estado: {r['estado']}"
-                )
+                print(f"Reserva N°{r['id_reserva']} | Paquete: {r['paquete_nombre']} | Personas: {r['cantidad_personas']} | Total: ${r['monto_total_congelado']:,.0f} CLP | Fecha: {r['fecha_salida']} | Estado: {r['estado']}")
         input("\nPresione solo Enter para continuar...")
         return cliente_actual, False
 
@@ -132,277 +212,227 @@ def ejecutar_menu_cliente(db: BaseDatos, cliente_actual: Cliente) -> tuple:
         return cliente_actual, False
 
 
-    
-def leer_entero(mensaje: str, min_val: Optional[int] = None, max_val: Optional[int] = None) -> int:
-    while True:
-        try:
-            valor = int(input(mensaje).strip())
-            if min_val is not None and valor < min_val:
-                print(f"El valor ingresado debe ser mayor o igual a {min_val}.")
-                continue
-            if max_val is not None and valor > max_val:
-                print(f"El valor ingresado debe ser menor o igual a {max_val}.")
-                continue
-            return valor
-        except ValueError:
-            print("Entrada no válida. Por favor, ingrese un número entero.")
-
-
-def leer_flotante(mensaje: str, min_val: Optional[float] = None) -> float:
-    while True:
-        try:
-            valor = float(input(mensaje).strip())
-            if min_val is not None and valor < min_val:
-                print(f"El valor ingresado debe ser mayor o igual a {min_val}.")
-                continue
-            return valor
-        except ValueError:
-            print("Entrada no válida. Por favor, ingrese un número decimal válido.")
-
-
-def seleccionar_destinos_por_ids(db: BaseDatos) -> Optional[List[Destino]]:
-    destinos_disponibles = [d for d in db.obtener_todos_los_destinos() if d.disponible]
-    if len(destinos_disponibles) < 2:
-        print("No existen suficientes destinos disponibles (mínimo 2).")
-        return None
-
-    print("\nDestinos disponibles:")
-    for d in destinos_disponibles:
-        print(f"ID #{d.id_destino}: {d.nombre} ({d.zona}) - ${d.costo_base:,.0f}")
-
-    while True:
-        raw_ids = input("\nIngrese los ID separados por comas (o 'cancelar' para volver): ").strip()
-        if raw_ids.lower() == "cancelar":
-            return None
-
-        ids_ingresados = []
-        for parte in raw_ids.split(","):
-            parte_clean = parte.strip().lower()
-            if parte_clean.startswith("id #") and parte_clean[4:].isdigit():
-                ids_ingresados.append(int(parte_clean[4:]))
-            elif parte_clean.isdigit():
-                ids_ingresados.append(int(parte_clean))
-            else:
-                for d in destinos_disponibles:
-                    if parte_clean == d.nombre.lower():
-                        ids_ingresados.append(d.id_destino)
-
-        ids_unicos = list(dict.fromkeys(ids_ingresados))
-
-        if len(ids_unicos) < 2 or len(ids_unicos) > 5:
-            print("Debe seleccionar entre 2 y 5 destinos distintos.")
-            continue
-
-        destinos_seleccionados = []
-        error = False
-        for id_d in ids_unicos:
-            dest = db.obtener_destino_por_id(id_d)
-            if dest and dest.disponible:
-                destinos_seleccionados.append(dest)
-            else:
-                print(f"El destino con ID #{id_d} no existe o no está disponible.")
-                error = True
-                break
-        if not error:
-            return destinos_seleccionados
-
-
-def inicializar_datos_demo(db: BaseDatos):
-    destinos = db.obtener_todos_los_destinos()
-    if not destinos:
-        db.guardar_destino(Destino(0, "Cajón del Maipo", "Región Metropolitana", "Trekking y termas", 1, 45000.0))
-        db.guardar_destino(Destino(0, "Salar de Surire", "Región de Arica y Parinacota", "Altiplano y fauna", 3, 310000.0))
-        db.guardar_destino(Destino(0, "Valle del Elqui", "Región de Coquimbo", "Observación astronómica", 2, 120000.0))
-        db.guardar_destino(Destino(0, "Parque Conguillío", "Región de La Araucanía", "Bosque de araucarias", 3, 185000.0))
-
-
-def mostrar_catalogo_visita(db: BaseDatos):
-    print("\n--- CATALOGO DE DESTINOS DISPONIBLES ---")
-    destinos = db.obtener_todos_los_destinos()
-    if not destinos:
-        print("No hay destinos registrados.")
-    else:
-        for d in destinos:
-            estado = "Disponible" if d.disponible else "No disponible"
-            print(f"ID #{d.id_destino}: {d.nombre} ({d.zona}) | {d.duracion_dias} días | ${d.costo_base:,.0f} | {estado}")
-    input("\nPresione solo Enter para continuar...")
-
-def ejecutar_menu_visitante(db: BaseDatos) -> tuple:
+def ejecutar_menu_admin(db: BaseDatos, admin_actual: Administrador) -> tuple:
     print("\n" + "="*50)
-    print(" AGENCIA DE VIAJES AVENTURA - SISTEMA DE RESERVAS")
+    print("   AGENCIA DE VIAJES AVENTURA - PANEL ADMINISTRADOR")
     print("="*50)
-    print("1. Explorar Catálogo")
-    print("2. Iniciar Sesión como Cliente")
-    print("3. Registrarse como Cliente")
-    print("4. Acceso Administrador")
+    print(f"Sesion activa: {admin_actual.nombre_completo}")
+    print("1. Gestionar Destinos (Agregar / Editar / Cambiar Estado)")
+    print("2. Gestionar Paquetes (Crear / Listar / Eliminar)")
+    print("3. Gestionar Reservas (Listar Todas / Cambiar Estado / Eliminar)")
+    print("4. Cerrar Sesion")
     print("5. Salir")
 
-    opcion = input("\nSeleccione una opción (1-5): ").strip()
+    opcion = input("\nSeleccione una opcion (1-5): ").strip()
 
     if opcion == "1":
-        mostrar_catalogo_visita(db)
-        return None, False, False
+        print("\n--- GESTION DE DESTINOS ---")
+        print("1. Agregar Nuevo Destino")
+        print("2. Modificar / Cambiar Disponibilidad de Destino")
+        sub_op = input("Seleccione (1-2): ").strip()
 
-    elif opcion == "2":
-        email = input("Correo electrónico: ").strip()
-        clave = leer_clave_efecto_mascara("Contraseña: ").strip()
-        datos = db.obtener_cliente_por_email(email)
-        if datos:
-            cliente_tmp = Cliente(
-                datos["id_usuario"],
-                datos["nombre_completo"],
-                datos["email"],
-                datos["rut"],
-                datos["telefono"],
-                clave_hash=datos["clave_hash"]
-            )
-            if cliente_tmp.autenticar(clave):
-                return cliente_tmp, False, False
-            else:
-                print("Contraseña incorrecta.")
-        else:
-            print("No existe una cuenta registrada con ese correo.")
-        input("\nPresione solo Enter para continuar...")
-        return None, False, False
-
-    elif opcion == "3":
-        try:
-            nombre = input("Nombre completo: ").strip()
-            if len(nombre) < 3:
-                print("El nombre completo debe tener al menos 3 caracteres.")
-                input("\nPresione solo Enter para continuar...")
-                return None, False, False
-            email = input("Correo electrónico: ").strip()
-            rut = input("RUT: ").strip()
-            telefono = input("Teléfono: ").strip()
-            clave = leer_clave_efecto_mascara("Contraseña (mínimo 6 caracteres): ").strip()
-            if len(clave) < 6:
-                print("La contraseña debe tener un mínimo de 6 caracteres.")
-                input("\nPresione solo Enter para continuar...")
-                return None, False, False
-            cliente_nuevo = Cliente(0, nombre, email, rut, telefono, clave_raw=clave)
-            db.registrar_cliente(cliente_nuevo)
-            print("Cliente registrado exitosamente.")
-        except Exception:
-            print("Error al registrar cliente.")
-        input("\nPresione solo Enter para continuar...")
-        return None, False, False
-
-    elif opcion == "4":
-        clave_admin = leer_clave_efecto_mascara("Clave de administración: ").strip()
-        if clave_admin == "admin123":
-            return None, True, False
-        else:
-            print("Clave incorrecta.")
-        input("\nPresione solo Enter para continuar...")
-        return None, False, False
-
-    elif opcion == "5":
-        print("Gracias por utilizar el sistema.")
-        return None, False, True
-
-    else:
-        print("Opción no válida.")
-        input("\nPresione solo Enter para continuar...")
-        return None, False, False
-
-def ejecutar_menu_admin(db: BaseDatos) -> tuple:
-    print("\n" + "="*50)
-    print(" AGENCIA DE VIAJES AVENTURA - SISTEMA DE RESERVAS")
-    print("="*50)
-    print("Sesión activa: ADMINISTRADOR (Agencia)")
-    print("1. Registrar Nuevo Destino")
-    print("2. Armar y Publicar Nuevo Paquete Turístico")
-    print("3. Ver Catálogo de Destinos")
-    print("4. Cerrar Sesión Administrador")
-    print("5. Salir")
-
-    opcion = input("\nSeleccione una opción (1-5): ").strip()
-
-    if opcion == "1":
-        print("\n--- REGISTRAR NUEVO DESTINO TURÍSTICO ---")
-        try:
+        if sub_op == "1":
             nombre = input("Nombre del destino: ").strip()
-            zona = input("Zona / Ubicación: ").strip()
-            descripcion = input("Descripción breve: ").strip()
-            dias = leer_entero("Duración estimada (días): ", min_val=1)
-            costo = leer_flotante("Costo base ($): ", min_val=1.0)
-            nuevo_destino = Destino(0, nombre, zona, descripcion, dias, costo)
-            id_dest = db.guardar_destino(nuevo_destino)
-            print(f"\nDestino '{nombre}' guardado exitosamente con ID #{id_dest}.")
-        except Exception:
-            print("\nError al guardar el destino.")
+            zona = input("Zona geografica: ").strip()
+            desc = input("Descripcion: ").strip()
+            dias = leer_entero("Duracion en dias: ", min_val=1)
+            costo = float(input("Costo base en CLP: ").strip())
+            dest = Destino(0, nombre, zona, desc, dias, costo)
+            db.guardar_destino(dest)
+            print("\nDestino registrado exitosamente en el catalogo.")
+
+        elif sub_op == "2":
+            destinos = db.obtener_todos_los_destinos()
+            for d in destinos:
+                print(f"ID #{d.id_destino}: {d.nombre} | Costo: ${d.costo_base:,.0f} | Disponible: {d.disponible}")
+            id_d = leer_entero("\nID del destino a modificar: ", min_val=1)
+            d_obj = db.obtener_destino_por_id(id_d)
+            if d_obj:
+                nuevo_nom = input(f"Nuevo nombre [{d_obj.nombre}]: ").strip() or d_obj.nombre
+                nuevo_costo = input(f"Nuevo costo [{d_obj.costo_base}]: ").strip()
+                costo_val = float(nuevo_costo) if nuevo_costo else d_obj.costo_base
+                disp_str = input("¿Disponible? (s/n): ").strip().lower()
+                disp_val = True if disp_str == 's' else False
+                db.actualizar_destino(id_d, nuevo_nom, costo_val, disp_val)
+                print("\nDestino actualizado correctamente.")
         input("\nPresione solo Enter para continuar...")
-        return True, False
+        return admin_actual, False
 
     elif opcion == "2":
-        print("\n--- ARMAR Y PUBLICAR PAQUETE TURÍSTICO ---")
-        try:
-            destinos_elegidos = seleccionar_destinos_por_ids(db)
-            if not destinos_elegidos:
-                input("\nPresione solo Enter para continuar...")
-                return True, False
+        print("\n--- GESTION DE PAQUETES ---")
+        print("1. Listar Paquetes")
+        print("2. Crear Paquete Combinando Destinos")
+        print("3. Eliminar Paquete")
+        sub_op = input("Seleccione (1-3): ").strip()
 
-            nombre = input("Nombre comercial del paquete: ").strip()
-            if len(nombre) < 3:
-                print("El nombre del paquete debe tener al menos 3 caracteres.")
-                input("\nPresione solo Enter para continuar...")
-                return True, False
+        if sub_op == "1":
+            paquetes = db.obtener_todos_los_paquetes()
+            for p in paquetes:
+                print(f"ID #{p['id_paquete']}: {p['nombre']} | Salida: {p['fecha_salida']} | Precio: ${p['precio_publicado']:,.0f} CLP | Cupo: {p['cupo_maximo']}")
 
-            cupo = leer_entero("Cupo máximo de personas: ", min_val=1)
-            fecha_salida = date.today() + timedelta(days=20)
-            fecha_regreso = fecha_salida + timedelta(days=7)
+        elif sub_op == "2":
+            destinos = db.obtener_todos_los_destinos()
+            print("\nDestinos activos disponibles:")
+            for d in destinos:
+                if d.disponible:
+                    print(f"ID #{d.id_destino}: {d.nombre} (${d.costo_base:,.0f})")
+            ids_input = input("\nIngrese los ID de destinos separados por comas (ej: 1, 2): ").strip()
+            ids = [int(i.strip()) for i in ids_input.split(",") if i.strip().isdigit()]
+            d_elegidos = [db.obtener_destino_por_id(i) for i in ids if db.obtener_destino_por_id(i)]
 
-            paquete_tmp = Paquete(0, nombre, fecha_salida, fecha_regreso, cupo, destinos_elegidos)
-            id_paq = db.guardar_paquete(paquete_tmp)
+            if len(d_elegidos) >= 2:
+                nom_paq = input("Nombre comercial del paquete: ").strip() or "Paquete Especial"
+                cupo = leer_entero("Cupo maximo de pasajeros: ", min_val=1)
+                paq = Paquete(0, nom_paq, date.today() + timedelta(days=30), date.today() + timedelta(days=35), cupo, d_elegidos)
+                db.guardar_paquete(paq)
+                print(f"\nPaquete '{nom_paq}' creado exitosamente con precio publicado de ${paq.precio_publicado:,.0f} CLP.")
+            else:
+                print("\nDebe seleccionar al menos 2 destinos validos.")
 
-            print(f"\nPaquete '{nombre}' armado y publicado correctamente con ID #{id_paq}.")
-            print(f"Precio publicado por persona: ${paquete_tmp.precio_publicado:,.0f}")
-        except Exception:
-            print("\nError al armar el paquete.")
+        elif sub_op == "3":
+            id_p = leer_entero("ID del paquete a eliminar: ", min_val=1)
+            if db.eliminar_paquete(id_p):
+                print("\nPaquete eliminado exitosamente.")
+            else:
+                print("\nNo se encontro el paquete especificado.")
         input("\nPresione solo Enter para continuar...")
-        return True, False
+        return admin_actual, False
 
     elif opcion == "3":
-        mostrar_catalogo_visita(db)
-        return True, False
+        print("\n--- GESTION GLOBAL DE RESERVAS ---")
+        print("1. Listar Todas las Reservas de la Agencia")
+        print("2. Actualizar Estado de una Reserva")
+        print("3. Eliminar / Cancelar Reserva")
+        sub_op = input("Seleccione (1-3): ").strip()
+
+        if sub_op == "1":
+            reservas = db.obtener_todas_las_reservas()
+            if not reservas:
+                print("No hay reservas registradas en el sistema.")
+            else:
+                for r in reservas:
+                    print(f"Reserva N°{r['id_reserva']} | Cliente: {r['cliente_nombre']} | Paquete: {r['paquete_nombre']} | Personas: {r['cantidad_personas']} | Total: ${r['monto_total_congelado']:,.0f} CLP | Estado: {r['estado']}")
+
+        elif sub_op == "2":
+            id_r = leer_entero("ID de la reserva a actualizar: ", min_val=1)
+            nuevo_est = input("Ingrese el nuevo estado (ej: Pagada / Confirmada / Cancelada): ").strip()
+            if db.actualizar_estado_reserva(id_r, nuevo_est):
+                print("\nEstado de la reserva actualizado exitosamente.")
+            else:
+                print("\nReserva no encontrada.")
+
+        elif sub_op == "3":
+            id_r = leer_entero("ID de la reserva a eliminar: ", min_val=1)
+            if db.eliminar_reserva(id_r):
+                print("\nReserva eliminada exitosamente del sistema.")
+            else:
+                print("\nReserva no encontrada.")
+        input("\nPresione solo Enter para continuar...")
+        return admin_actual, False
 
     elif opcion == "4":
-        print("\nSesión de Administrador cerrada correctamente.")
+        print("\nSesion de administrador cerrada correctamente.")
         input("\nPresione solo Enter para continuar...")
-        return False, False
+        return None, False
 
     elif opcion == "5":
         print("\nGracias por utilizar el sistema de Viajes Aventura.")
-        return False, True
+        return None, True
 
     else:
-        print("\nOpción no válida.")
+        print("\nOpcion no valida.")
         input("\nPresione solo Enter para continuar...")
-        return True, False
+        return admin_actual, False
 
 
 def menu_principal():
     db = BaseDatos()
     inicializar_datos_demo(db)
-    cliente_actual = None
-    es_admin = False
+    usuario_actual = None
 
     while True:
-        if es_admin:
-            es_admin, salir = ejecutar_menu_admin(db)
+        if usuario_actual:
+            if usuario_actual.rol == "admin":
+                usuario_actual, salir = ejecutar_menu_admin(db, usuario_actual)
+            else:
+                usuario_actual, salir = ejecutar_menu_cliente(db, usuario_actual)
             if salir:
-                break
-        elif cliente_actual:
-            cliente_actual, salir = ejecutar_menu_cliente(db, cliente_actual)
-            if salir:
-                break
+                sys.exit(0)
         else:
-            cliente_actual, es_admin, salir = ejecutar_menu_visitante(db)
-            if salir:
-                break
+            print("\n" + "="*50)
+            print("   AGENCIA DE VIAJES AVENTURA - SISTEMA PRINCIPAL")
+            print("="*50)
+            print("1. Explorar Catalogo")
+            print("2. Iniciar Sesion como CLIENTE")
+            print("3. Registrarse como CLIENTE")
+            print("4. Acceso ADMINISTRADOR")
+            print("5. Salir")
+
+            opcion = input("\nSeleccione una opcion (1-5): ").strip()
+
+            if opcion == "1":
+                mostrar_catalogo_con_api(db)
+
+            elif opcion == "2":
+                print("\n--- INICIO DE SESION CLIENTE ---")
+                email = input("Correo electronico: ").strip()
+                clave = leer_clave_enmascarada("Contrasena: ").strip()
+
+                datos_usr = db.obtener_usuario_por_email(email)
+                if datos_usr:
+                    if datos_usr["rol"] != "cliente":
+                        print("\nEsta opcion es exclusiva para clientes. Si es Administrador, utilice la opcion 4 del menu.")
+                    else:
+                        usr_tmp = Cliente(datos_usr["id_usuario"], datos_usr["nombre"], datos_usr["email"], datos_usr["rut"], datos_usr["telefono"], clave_hash=datos_usr["clave_hash"])
+                        if usr_tmp.autenticar(clave):
+                            usuario_actual = usr_tmp
+                            print(f"\nBienvenido de nuevo, {usuario_actual.nombre_completo}.")
+                        else:
+                            print("\nContrasena incorrecta.")
+                else:
+                    print("\nNo existe una cuenta de cliente registrada con ese correo.")
+                input("\nPresione solo Enter para continuar...")
+
+            elif opcion == "3":
+                print("\n--- REGISTRO DE CLIENTE ---")
+                try:
+                    nombre = input("Nombre completo: ").strip()
+                    email = input("Correo electronico: ").strip()
+                    rut = input("RUT (ej: 11111111-1): ").strip()
+                    telefono = input("Telefono: ").strip()
+                    clave = leer_clave_enmascarada("Contrasena (minimo 6 caracteres): ").strip()
+
+                    cliente_nuevo = Cliente(0, nombre, email, rut, telefono, clave_raw=clave)
+                    db.registrar_cliente(cliente_nuevo)
+                    print("\nCliente registrado exitosamente. Ahora puede iniciar sesion.")
+                except Exception as e:
+                    print(f"\nError al registrar cliente: {e}")
+                input("\nPresione solo Enter para continuar...")
+
+            elif opcion == "4":
+                print("\n--- ACCESO ADMINISTRADOR ---")
+                email = input("Correo de Administrador: ").strip()
+                clave = leer_clave_enmascarada("Contrasena de Administrador: ").strip()
+
+                datos_usr = db.obtener_usuario_por_email(email)
+                if datos_usr:
+                    if datos_usr["rol"] != "admin":
+                        print("\nAcceso denegado. Este correo no cuenta con privilegios de Administrador.")
+                    else:
+                        usr_tmp = Administrador(datos_usr["id_usuario"], datos_usr["nombre"], datos_usr["email"], clave_hash=datos_usr["clave_hash"])
+                        if usr_tmp.autenticar(clave):
+                            usuario_actual = usr_tmp
+                            print(f"\nBienvenido al Panel Administrador, {usuario_actual.nombre_completo}.")
+                        else:
+                            print("\nContrasena incorrecta.")
+                else:
+                    print("\nNo existe una cuenta de administrador con ese correo.")
+                input("\nPresione solo Enter para continuar...")
+
+            elif opcion == "5":
+                print("\nGracias por utilizar el sistema de Viajes Aventura.")
+                sys.exit(0)
+
 
 if __name__ == "__main__":
     menu_principal()
-
-           
