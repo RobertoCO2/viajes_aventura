@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -45,21 +46,6 @@
         <p>Total: <span id="resumen-total">$0 CLP</span></p>
         <button type="submit" class="btn-primary">Confirmar Reserva</button>
       </form>
-
-      <h3>Historial de Reservas</h3>
-      <table class="tabla-custom">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Paquete</th>
-            <th>Pasajeros</th>
-            <th>Total</th>
-            <th>Estado</th>
-            <th id="th-acciones" class="hidden">Acciones</th>
-          </tr>
-        </thead>
-        <tbody id="tabla-reservas-body"></tbody>
-      </table>
     </section>
 
     <!-- Panel Administrador -->
@@ -104,9 +90,11 @@
           <tbody id="tabla-paquetes-body"></tbody>
         </table>
       </div>
+    </section>
 
-      <!-- Tabla de reservas administradas -->
-      <h3>Reservas de Clientes</h3>
+    <!-- Tabla de reservas (compartida) -->
+    <section>
+      <h2>Reservas</h2>
       <table class="tabla-custom">
         <thead>
           <tr>
@@ -115,7 +103,7 @@
             <th>Pasajeros</th>
             <th>Total</th>
             <th>Estado</th>
-            <th>Acciones</th>
+            <th id="th-acciones" class="hidden">Acciones</th>
           </tr>
         </thead>
         <tbody id="tabla-reservas-body"></tbody>
