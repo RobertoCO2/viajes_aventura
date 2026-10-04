@@ -140,8 +140,6 @@ function calcularTotalReserva() {
   }
 }
 
-}
-
 // --- Modales ---
 function abrirModal(idModal) {
   document.getElementById(idModal).classList.remove("hidden");
@@ -407,7 +405,28 @@ function actualizarTablaReservas() {
     return;
   }
 
-  const todasLasReservas = JSON.parse(localStorage.getItem("todas_las_reservas_aventura")) || [];
+    const todasLasReservas = JSON.parse(localStorage.getItem("todas_las_reservas_aventura")) || [];
+  const esAdmin = usuarioActual.rol === "admin";
+  const reservasAVisibilizar = esAdmin ? todasLasReservas : todasLasReservas.filter(r => r.emailCliente === usuarioActual.email);
+
+  if (reservasAVisibilizar.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6">${esAdmin ? "No hay reservas registradas en el sistema." : "No registra reservas emitidas en su cuenta."}</td></tr>`;
+    return;
+  }
+
+  reservasAVisibilizar.forEach(res => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>#${res.id}</td>
+      <td>${res.paquete} ${esAdmin ? `<br /><small>${res.emailCliente}</small>` : ''}</td>
+      <td>${res.pasajeros} persona(s)</td>
+      <td>$${res.total.toLocaleString("es-CL")} CLP</td>
+      <td><strong>${res.estado}</strong></td>
+      <td>${esAdmin ? `<button class="btn-danger" onclick="eliminarReserva(${res.id})">Eliminar</button>` : ''}</td>
+    `;
+    tbody.appendChild(row);
+  });
+}
 const esAdmin = usuarioActual.rol === "admin";
 const reservasAVisibilizar = esAdmin ? todasLasReservas : todasLasReservas.filter(r => r.emailCliente === usuarioActual.email);
 
@@ -440,4 +459,4 @@ reservasAVisibilizar.forEach(res => {
   `;
   tbody.appendChild(row);
 });
-}
+
