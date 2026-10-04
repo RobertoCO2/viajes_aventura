@@ -45,7 +45,34 @@
             </div>
         </section>
 
-        <section id="reservas" class="seccion">
+        <!-- Panel Administrador -->
+        <section id="admin-panel" class="hidden seccion">
+            <h2>Panel Administrador</h2>
+            <div class="form-card">
+                <form id="form-nuevo-paquete" onsubmit="crearNuevoPaquete(event)">
+                    <div class="form-group">
+                        <label for="admin-paquete-nombre">Nombre del Paquete:</label>
+                        <input type="text" id="admin-paquete-nombre" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="admin-paquete-fecha">Fecha de Salida:</label>
+                        <input type="date" id="admin-paquete-fecha" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="admin-paquete-precio">Precio (CLP):</label>
+                        <input type="number" id="admin-paquete-precio" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="admin-paquete-cupo">Cupo:</label>
+                        <input type="number" id="admin-paquete-cupo" required>
+                    </div>
+                    <button type="submit" class="btn-primary">Crear Paquete</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Panel Cliente -->
+        <section id="cliente-panel" class="hidden seccion">
             <h2>Emitir Reserva de Paquete</h2>
             <div class="form-card">
                 <form id="form-reserva" onsubmit="procesarReserva(event)">
@@ -80,11 +107,12 @@
                             <th>Pasajeros</th>
                             <th>Monto Total</th>
                             <th>Estado</th>
+                            <th id="th-acciones" class="hidden">Acciones</th>
                         </tr>
                     </thead>
                     <tbody id="tabla-reservas-body">
                         <tr>
-                            <td colspan="5" class="text-center">Inicie sesion para ver su historial de reservas.</td>
+                            <td colspan="6" class="text-center">Inicie sesion para ver su historial de reservas.</td>
                         </tr>
                     </tbody>
                 </table>
