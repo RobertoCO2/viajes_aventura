@@ -1,14 +1,35 @@
 import hashlib
+import json
+import urllib.request
 from datetime import date
 from typing import List, Optional
 
+
+class ServicioMoneda:
+    """Consumo de API externa (mindicador.cl) con la librería nativa de Python."""
+    @staticmethod
+    def obtener_valor_dolar() -> Optional[float]:
+        try:
+            url = "https://mindicador.cl/api/dolar"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=5) as respuesta:
+                datos = json.loads(respuesta.read().decode('utf-8'))
+                serie = datos.get("serie", [])
+                if serie and len(serie) > 0:
+                    return float(serie.get("valor", 0.0))
+        except Exception:
+            return None
+        return None
+
+
 class Usuario:
-    """Clase base que representa a un usuario del sistema."""
-    def __init__(self, id_usuario: int, nombre_completo: str, correo: str, clave_raw: str = None, clave_hash: str = None):
+    def __init__(self, id_usuario: int, nombre_completo: str, correo: str, rol: str = "cliente",
+                 clave_raw: str = None, clave_hash: str = None):
         self._id_usuario = id_usuario
-        self._nombre_completo = nombre_completo.strip()
+        self._nombre_completo = nombre_completo
         self._correo = correo.lower().strip()
-        
+        self._rol = rol
+
         if clave_hash:
             self._clave_hash = clave_hash
         elif clave_raw:
@@ -23,6 +44,9 @@ class Usuario:
     def autenticar(self, clave_ingresada: str) -> bool:
         return self._clave_hash == self._generar_hash(clave_ingresada)
 
+    def obtener_clave_enmascarada(self) -> str:
+        return "######"
+
     @property
     def id_usuario(self) -> int:
         return self._id_usuario
@@ -36,15 +60,18 @@ class Usuario:
         return self._correo
 
     @property
+    def rol(self) -> str:
+        return self._rol
+
+    @property
     def clave_hash(self) -> str:
         return self._clave_hash
 
 
 class Cliente(Usuario):
-    """Representa a un cliente del sistema con proteccion de datos sensibles."""
     def __init__(self, id_usuario: int, nombre_completo: str, correo: str, rut: str, telefono: str, 
                  clave_raw: str = None, clave_hash: str = None):
-        super().__init__(id_usuario, nombre_completo, correo, clave_raw=clave_raw, clave_hash=clave_hash)
+        super().__init__(id_usuario, nombre_completo, correo, rol="cliente", clave_raw=clave_raw, clave_hash=clave_hash)
         self._rut = rut.strip()
         self._telefono = telefono.strip()
 
@@ -70,8 +97,12 @@ class Cliente(Usuario):
         return "+569****0000"
 
 
+class Administrador(Usuario):
+    def __init__(self, id_usuario: int, nombre_completo: str, correo: str, clave_raw: str = None, clave_hash: str = None):
+        super().__init__(id_usuario, nombre_completo, correo, rol="admin", clave_raw=clave_raw, clave_hash=clave_hash)
+
+
 class Destino:
-    """Representa un atractivo o servicio turistico cotizado individualmente (Regla R1)."""
     def __init__(self, id_destino: int, nombre: str, zona: str, descripcion: str, 
                  duracion_dias: int, costo_base: float, disponible: bool = True):
         if costo_base <= 0:
@@ -81,7 +112,7 @@ class Destino:
         self._nombre = nombre.strip()
         self._zona = zona.strip()
         self._descripcion = descripcion.strip()
-        self._duracion_dias = int(duracion_dias)
+        self._duracion_dias = duracion_dias
         self._costo_base = float(costo_base)
         self._disponible = disponible
 
@@ -113,11 +144,8 @@ class Destino:
     def disponible(self) -> bool:
         return self._disponible
 
-    def deshabilitar(self) -> None:
-        self._disponible = False
 
 class Paquete:
-    """Estructura comercial que combina entre 2 y 5 destinos y congela el precio publicado."""
     def __init__(self, id_paquete: int, nombre: str, fecha_salida: date, fecha_regreso: date, 
                  cupo_maximo: int, destinos: List[Destino], margen_operacion: float = 0.20, 
                  precio_publicado: Optional[float] = None):
@@ -125,14 +153,11 @@ class Paquete:
         if len(destinos) < 2 or len(destinos) > 5:
             raise ValueError("Un paquete debe incluir entre 2 y 5 destinos sin repetir.")
 
-        if fecha_regreso <= fecha_salida:
-            raise ValueError("La fecha de regreso debe ser posterior a la de salida.")
-
         self._id_paquete = id_paquete
         self._nombre = nombre.strip()
         self._fecha_salida = fecha_salida
         self._fecha_regreso = fecha_regreso
-        self._cupo_maximo = int(cupo_maximo)
+        self._cupo_maximo = cupo_maximo
         self._destinos = destinos
         self._margen_operacion = float(margen_operacion)
 
@@ -162,26 +187,19 @@ class Paquete:
         return self._cupo_maximo
 
     @property
-    def destinos(self) -> List[Destino]:
-        return self._destinos
-
-    @property
     def precio_publicado(self) -> float:
         return self._precio_publicado
+
+    @property
+    def destinos(self) -> List[Destino]:
+        return self._destinos
 
     def calcular_precio_base(self) -> float:
         suma_costos = sum(d.costo_base for d in self._destinos)
         return round(suma_costos * (1.0 + self._margen_operacion), 2)
 
-    def obtener_cupo_disponible(self, reservas_actuales: int) -> int:
-        return max(0, self._cupo_maximo - reservas_actuales)
-
-    def es_valido_para_reserva(self) -> bool:
-        return self._fecha_salida >= date.today()
-
 
 class Reserva:
-    """Transaccion de compra emitida por un cliente para un paquete especifico."""
     def __init__(self, id_reserva: int, cliente: Cliente, paquete: Paquete, 
                  cantidad_personas: int, fecha_emision: Optional[date] = None, 
                  total_cobrado: Optional[float] = None, estado: str = "Confirmada"):
@@ -189,13 +207,10 @@ class Reserva:
         if cantidad_personas < 1:
             raise ValueError("La cantidad de personas por reserva debe ser al menos 1.")
 
-        if not paquete.es_valido_para_reserva():
-            raise ValueError("No se aceptan reservas para paquetes con fecha expirada.")
-
         self._id_reserva = id_reserva
         self._cliente = cliente
         self._paquete = paquete
-        self._cantidad_personas = int(cantidad_personas)
+        self._cantidad_personas = cantidad_personas
         self._fecha_emision = fecha_emision if fecha_emision else date.today()
         self._estado = estado
 
@@ -209,34 +224,13 @@ class Reserva:
         return self._id_reserva
 
     @property
-    def cliente(self) -> Cliente:
-        return self._cliente
-
-    @property
-    def paquete(self) -> Paquete:
-        return self._paquete
-
-    @property
-    def cantidad_personas(self) -> int:
-        return self._cantidad_personas
-
-    @property
-    def fecha_emision(self) -> date:
-        return self._fecha_emision
-
-    @property
     def total_cobrado(self) -> float:
+        return self._total_cobrado
+
+    @property
+    def monto_total_congelado(self) -> float:
         return self._total_cobrado
 
     @property
     def estado(self) -> str:
         return self._estado
-
-    def obtener_detalle_reserva(self) -> str:
-        return (f"Reserva N°{self._id_reserva} | Cliente: {self._cliente.nombre_completo} "
-                f"({self._cliente.obtener_rut_enmascarado()}) | Paquete: {self._paquete.nombre} | "
-                f"Personas: {self._cantidad_personas} | Total: ${self._total_cobrado:,.0f}")
-
-    @property
-    def monto_total_congelado(self) -> float:
-        return self._paquete.precio_publicado * self._cantidad_personas
