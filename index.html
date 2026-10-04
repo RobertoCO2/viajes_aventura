@@ -1,181 +1,149 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agencia de Viajes Aventura</title>
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <title>Aventura Chile</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <header>
+    <h1>Aventura Chile</h1>
+    <nav>
+      <button id="btn-login" onclick="abrirModal('modal-login')">Iniciar Sesión</button>
+      <button id="btn-registro" onclick="abrirModal('modal-registro')">Registrarse</button>
+      <button id="btn-logout" class="hidden" onclick="cerrarSesion()">Cerrar Sesión</button>
+    </nav>
+  </header>
 
-    <header class="navbar">
-        <div class="logo">Viajes Aventura</div>
-        <nav>
-            <ul>
-                <li><a href="#catalogo">Explorar Catalogo</a></li>
-                <li><a href="#reservas">Mis Reservas</a></li>
-                <li><button id="btn-login" onclick="abrirModal('modal-login')">Iniciar Sesion</button></li>
-                <li><button id="btn-registro" onclick="abrirModal('modal-registro')">Registrarse</button></li>
-                <li><button id="btn-logout" class="hidden" onclick="cerrarSesion()">Cerrar Sesion</button></li>
-            </ul>
-        </nav>
-    </header>
-
-    <section class="hero">
-        <h1>Descubre Tu Proxima Aventura en Chile</h1>
-        <p>Encuentra los mejores destinos y paquetes turisticos al mejor precio</p>
-        <a href="#catalogo" class="btn-primary">Ver Catalogo</a>
+  <main>
+    <!-- Catálogo de destinos -->
+    <section>
+      <h2>Destinos</h2>
+      <div id="indicador-dolar"></div>
+      <div id="grid-destinos" class="grid"></div>
     </section>
 
-    <main class="container">
+    <!-- Catálogo de paquetes -->
+    <section>
+      <h2>Paquetes</h2>
+      <div id="grid-paquetes" class="grid"></div>
+    </section>
 
-        <section class="indicador-moneda">
-            <div id="indicador-dolar">Cargando tipo de cambio USD...</div>
-        </section>
-
-        <section id="catalogo" class="seccion">
-            <h2>Destinos Disponibles</h2>
-            <div id="grid-destinos" class="grid-card">
-                <!-- Se carga dinamicamente con script.js -->
-            </div>
-
-            <h2>Paquetes Turisticos Publicados</h2>
-            <div id="grid-paquetes" class="grid-card">
-                <!-- Se carga dinamicamente con script.js -->
-            </div>
-        </section>
-
-        <!-- Panel Administrador -->
-        <section id="admin-panel" class="hidden seccion">
-            <h2>Panel Administrador</h2>
-            <div class="form-card">
-                <form id="form-nuevo-paquete" onsubmit="crearNuevoPaquete(event)">
-                    <div class="form-group">
-                        <label for="admin-paquete-nombre">Nombre del Paquete:</label>
-                        <input type="text" id="admin-paquete-nombre" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="admin-paquete-fecha">Fecha de Salida:</label>
-                        <input type="date" id="admin-paquete-fecha" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="admin-paquete-precio">Precio (CLP):</label>
-                        <input type="number" id="admin-paquete-precio" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="admin-paquete-cupo">Cupo:</label>
-                        <input type="number" id="admin-paquete-cupo" required>
-                    </div>
-                    <button type="submit" class="btn-primary">Crear Paquete</button>
-                </form>
-            </div>
-        </section>
-
-        <!-- Panel Cliente -->
-        <section id="cliente-panel" class="hidden seccion">
-            <h2>Emitir Reserva de Paquete</h2>
-            <div class="form-card">
-                <form id="form-reserva" onsubmit="procesarReserva(event)">
-                    <div class="form-group">
-                        <label for="select-paquete">Seleccionar Paquete:</label>
-                        <select id="select-paquete" required>
-                            <option value="">Cargando paquetes...</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="cant-pasajeros">Cantidad de Pasajeros:</label>
-                        <input type="number" id="cant-pasajeros" min="1" max="10" value="1" required onchange="calcularTotalReserva()">
-                    </div>
-
-                    <div class="resumen-cobro">
-                        <p>Precio Unitario: <span id="resumen-precio-unitario">$0 CLP</span></p>
-                        <p class="monto-total">Total a Pagar: <span id="resumen-total">$0 CLP</span></p>
-                    </div>
-
-                    <button type="submit" class="btn-primary">Confirmar Reserva</button>
-                </form>
-            </div>
-
-            <h2>Historial de Reservas</h2>
-            <div id="tabla-reservas-container">
-                <table class="tabla-custom">
-                    <thead>
-                        <tr>
-                            <th>N° Reserva</th>
-                            <th>Paquete</th>
-                            <th>Pasajeros</th>
-                            <th>Monto Total</th>
-                            <th>Estado</th>
-                            <th id="th-acciones" class="hidden">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tabla-reservas-body">
-                        <tr>
-                            <td colspan="6" class="text-center">Inicie sesion para ver su historial de reservas.</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-        
-    </main>
-
-    <!-- Modal Login -->
-    <div id="modal-login" class="modal hidden">
-        <div class="modal-content">
-            <span class="close" onclick="cerrarModal('modal-login')">&times;</span>
-            <h2>Iniciar Sesion</h2>
-            <form id="form-login" onsubmit="iniciarSesion(event)">
-                <div class="form-group">
-                    <label for="login-email">Correo Electronico:</label>
-                    <input type="email" id="login-email" required placeholder="jperez@email.com">
-                </div>
-                <div class="form-group">
-                    <label for="login-password">Contrasena:</label>
-                    <input type="password" id="login-password" required placeholder="******">
-                </div>
-                <button type="submit" class="btn-primary">Ingresar</button>
-            </form>
+    <!-- Panel Cliente -->
+    <section id="cliente-panel" class="hidden seccion">
+      <h2>Panel Cliente</h2>
+      <form id="form-reserva" onsubmit="procesarReserva(event)">
+        <div class="form-group">
+          <label for="select-paquete">Seleccione Paquete:</label>
+          <select id="select-paquete" required></select>
         </div>
-    </div>
-
-    <!-- Modal Registro -->
-    <div id="modal-registro" class="modal hidden">
-        <div class="modal-content">
-            <span class="close" onclick="cerrarModal('modal-registro')">&times;</span>
-            <h2>Registro de Cliente</h2>
-            <form id="form-registro" onsubmit="registrarCliente(event)">
-                <div class="form-group">
-                    <label for="reg-nombre">Nombre Completo:</label>
-                    <input type="text" id="reg-nombre" required placeholder="Juan Perez">
-                </div>
-                <div class="form-group">
-                    <label for="reg-email">Correo Electronico:</label>
-                    <input type="email" id="reg-email" required placeholder="jperez@email.com">
-                </div>
-                <div class="form-group">
-                    <label for="reg-rut">RUT:</label>
-                    <input type="text" id="reg-rut" required placeholder="11111111-1">
-                </div>
-                <div class="form-group">
-                    <label for="reg-telefono">Telefono:</label>
-                    <input type="text" id="reg-telefono" required placeholder="+56911111111">
-                </div>
-                <div class="form-group">
-                    <label for="reg-password">Contrasena:</label>
-                    <input type="password" id="reg-password" required minlength="6" placeholder="******">
-                </div>
-                <button type="submit" class="btn-primary">Registrarse</button>
-            </form>
+        <div class="form-group">
+          <label for="cant-pasajeros">Cantidad de Pasajeros:</label>
+          <input type="number" id="cant-pasajeros" value="1" min="1" required>
         </div>
-    </div>
+        <p>Precio Unitario: <span id="resumen-precio-unitario">$0 CLP</span></p>
+        <p>Total: <span id="resumen-total">$0 CLP</span></p>
+        <button type="submit" class="btn-primary">Confirmar Reserva</button>
+      </form>
 
-    <footer>
-        <p>&copy; 2026 Agencia de Viajes Aventura - Todos los derechos reservados</p>
-    </footer>
+      <h3>Historial de Reservas</h3>
+      <table class="tabla-custom">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Paquete</th>
+            <th>Pasajeros</th>
+            <th>Total</th>
+            <th>Estado</th>
+            <th id="th-acciones" class="hidden">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-reservas-body"></tbody>
+      </table>
+    </section>
 
-    <script src="script.js"></script>
+    <!-- Panel Administrador -->
+    <section id="admin-panel" class="hidden seccion">
+      <h2>Panel Administrador</h2>
+      <div class="form-card">
+        <form id="form-nuevo-paquete" onsubmit="crearNuevoPaquete(event)">
+          <div class="form-group">
+            <label for="admin-paquete-nombre">Nombre del Paquete:</label>
+            <input type="text" id="admin-paquete-nombre" required>
+          </div>
+          <div class="form-group">
+            <label for="admin-paquete-fecha">Fecha de Salida:</label>
+            <input type="date" id="admin-paquete-fecha" required>
+          </div>
+          <div class="form-group">
+            <label for="admin-paquete-precio">Precio (CLP):</label>
+            <input type="number" id="admin-paquete-precio" required>
+          </div>
+          <div class="form-group">
+            <label for="admin-paquete-cupo">Cupo:</label>
+            <input type="number" id="admin-paquete-cupo" required>
+          </div>
+          <button type="submit" class="btn-primary">Crear Paquete</button>
+        </form>
+      </div>
+
+      <!-- Tabla de paquetes administrados -->
+      <h3>Gestión de Paquetes</h3>
+      <div id="tabla-paquetes-admin">
+        <table class="tabla-custom">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nombre</th>
+              <th>Fecha</th>
+              <th>Precio</th>
+              <th>Cupo</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-paquetes-body"></tbody>
+        </table>
+      </div>
+
+      <!-- Tabla de reservas administradas -->
+      <h3>Reservas de Clientes</h3>
+      <table class="tabla-custom">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Paquete</th>
+            <th>Pasajeros</th>
+            <th>Total</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-reservas-body"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <!-- Modales -->
+  <div id="modal-login" class="modal hidden">
+    <form onsubmit="iniciarSesion(event)">
+      <h3>Iniciar Sesión</h3>
+      <input type="email" id="login-email" placeholder="Correo electrónico" required>
+      <button type="submit">Entrar</button>
+      <button type="button" onclick="cerrarModal('modal-login')">Cancelar</button>
+    </form>
+  </div>
+
+  <div id="modal-registro" class="modal hidden">
+    <form onsubmit="registrarCliente(event)">
+      <h3>Registro</h3>
+      <input type="text" id="reg-nombre" placeholder="Nombre completo" required>
+      <input type="email" id="reg-email" placeholder="Correo electrónico" required>
+      <input type="text" id="reg-rut" placeholder="RUT" required>
+      <button type="submit">Registrar</button>
+      <button type="button" onclick="cerrarModal('modal-registro')">Cancelar</button>
+    </form>
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>
-
