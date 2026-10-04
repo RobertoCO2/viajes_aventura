@@ -150,6 +150,60 @@ class BaseDatos:
             for row in rows:
                 destinos.append(Destino(row[0], row[1], row[2], row[3], row[4], row[5], bool(row[6])))
         return destinos
+    
+    def obtener_destino_por_id(self, id_destino: int) -> Optional[Destino]:
+        query = "SELECT id_destino, nombre, zona, descripcion, duracion_dias, costo_base FROM destinos WHERE id_destino = ?"
+        with self.obtener_conexion() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (id_destino,))
+            row = cursor.fetchone()
+            if row:
+                return Destino(row[0], row[1], row[2], row[3], row[4], row[5])
+        return None
+
+    def guardar_paquete(self, paquete: Paquete) -> int:
+        """Registra un paquete turístico en la base de datos."""
+        query_paquete = """
+            INSERT INTO paquetes (nombre, fecha_salida, fecha_regreso, cupo_maximo, precio_publicado)
+            VALUES (?, ?, ?, ?, ?)
+        """
+        with self.obtener_conexion() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query_paquete, (
+                paquete.nombre,
+                str(paquete.fecha_salida),
+                str(paquete.fecha_regreso),
+                paquete.cupo_maximo,
+                paquete.precio_publicado
+            ))
+            id_paq = cursor.lastrowid
+
+            # Guardar destinos asociados
+            query_destinos = "INSERT INTO paquete_destinos (id_paquete, id_destino) VALUES (?, ?)"
+            for destino in paquete.destinos:
+                cursor.execute(query_destinos, (id_paq, destino.id_destino))
+
+            conn.commit()
+        return id_paq
+
+    def guardar_reserva(self, reserva: Reserva) -> int:
+        """Registra una reserva congelando el monto total en la base de datos."""
+        query = """
+            INSERT INTO reservas (id_usuario, id_paquete, cantidad_personas, fecha_salida, monto_total_congelado, estado)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """
+        with self.obtener_conexion() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (
+                reserva._cliente.id_usuario,
+                reserva._paquete.id_paquete,
+                reserva._cantidad_personas,
+                str(reserva._paquete.fecha_salida),
+                reserva.monto_total_congelado,  
+                "Confirmada"
+            ))
+            conn.commit()
+            return cursor.lastrowid
 
     def guardar_paquete(self, paquete: Paquete) -> int:
         """Registra un paquete y sus destinos en la tabla intermedia."""
@@ -179,20 +233,20 @@ class BaseDatos:
     def guardar_reserva(self, reserva: Reserva) -> int:
         """Registra una reserva congelando el monto total."""
         query = """
-            INSERT INTO reservas (id_usuario, id_paquete, cantidad_personas, fecha_emision, total_cobrado, estado)
+            INSERT INTO reservas (id_usuario, id_paquete, cantidad_personas, fecha_salida, monto_total_congelado, estado)
             VALUES (?, ?, ?, ?, ?, ?)
         """
         with self.obtener_conexion() as conn:
             cursor = conn.cursor()
             cursor.execute(query, (
-                reserva.cliente.id_usuario,
-                reserva.paquete.id_paquete,
-                reserva.cantidad_personas,
-                reserva.fecha_emision.isoformat(),
-                reserva.total_cobrado,
-                reserva.estado
-            ))
+                reserva._cliente.id_usuario,
+                reserva._paquete.id_paquete,
+                reserva._cantidad_personas,
+                str(reserva._paquete.fecha_salida),
+                reserva.total_cobrado, "Confirmada"
+                ))
+            
             conn.commit()
-            reserva._id_reserva = cursor.lastrowid
             return cursor.lastrowid
+
   
