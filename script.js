@@ -15,7 +15,6 @@ const paquetesIniciales = [
   { id: 3, nombre: "Ruta del Elqui y Astronomia", fechaSalida: "2026-11-12", precio: 290000, cupo: 12 }
 ];
 
-// --- Inicialización ---
 document.addEventListener("DOMContentLoaded", () => {
   inicializarPaquetes();
   obtenerTipoCambio();
@@ -25,7 +24,6 @@ document.addEventListener("DOMContentLoaded", () => {
   cargarEstadoSesion();
 });
 
-// --- Paquetes en LocalStorage ---
 function obtenerPaquetes() {
   const creados = localStorage.getItem("paquetes_aventura");
   if (!creados) {
@@ -39,14 +37,13 @@ function inicializarPaquetes() {
   obtenerPaquetes();
 }
 
-// --- Tipo de Cambio ---
 async function obtenerTipoCambio() {
   const contenedor = document.getElementById("indicador-dolar");
   try {
     const respuesta = await fetch("https://mindicador.cl/api/dolar");
     if (respuesta.ok) {
       const datos = await respuesta.json();
-      tipoCambioUSD = datos.serie[0].valor;
+      tipoCambioUSD = datos.serie.valor;
       contenedor.innerText = `Tipo de Cambio Hoy: 1 USD = $${tipoCambioUSD.toLocaleString("es-CL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CLP`;
     } else {
       throw new Error("Respuesta no satisfactoria de la API");
@@ -58,9 +55,9 @@ async function obtenerTipoCambio() {
   cargarCatalogoPaquetes();
 }
 
-// --- Catálogo de Destinos ---
 function cargarCatalogoDestinos() {
   const grid = document.getElementById("grid-destinos");
+  if (!grid) return;
   grid.innerHTML = "";
   destinosDemo.forEach(dest => {
     const precioUSD = (dest.costo / tipoCambioUSD).toFixed(2);
@@ -68,29 +65,26 @@ function cargarCatalogoDestinos() {
     card.className = "card";
     card.innerHTML = `
       <h3>${dest.nombre}</h3>
-      <p><strong>Ubicación:</strong> ${dest.zona}</p>
+      <p><strong>Ubicacion:</strong> ${dest.zona}</p>
       <p>$${dest.costo.toLocaleString("es-CL")} CLP <small>(USD $${precioUSD})</small></p>
     `;
     grid.appendChild(card);
   });
 }
 
-// --- Catálogo de Paquetes ---
 function cargarCatalogoPaquetes() {
   const grid = document.getElementById("grid-paquetes");
+  if (!grid) return;
   grid.innerHTML = "";
   const paquetes = obtenerPaquetes();
-
   paquetes.forEach(paq => {
     const precioUSD = (paq.precio / tipoCambioUSD).toFixed(2);
     const card = document.createElement("div");
     card.className = "card";
-
     let botonEliminar = "";
     if (usuarioActual && usuarioActual.rol === "admin") {
-      botonEliminar = `<button class="btn-danger" onclick="eliminarPaquete(${paq.id})">Eliminar</button>`;
+      botonEliminar = ``;
     }
-
     card.innerHTML = `
       <h3>${paq.nombre}</h3>
       <p><strong>Fecha Salida:</strong> ${paq.fechaSalida}</p>
@@ -101,86 +95,124 @@ function cargarCatalogoPaquetes() {
     grid.appendChild(card);
   });
 }
-
-// --- Selector de Paquetes ---
 function poblarSelectPaquetes() {
   const select = document.getElementById("select-paquete");
+  if (!select) return;
   select.innerHTML = '<option value="">-- Seleccione un Paquete --</option>';
   const paquetes = obtenerPaquetes();
-
   paquetes.forEach(paq => {
     const option = document.createElement("option");
     option.value = paq.id;
     option.textContent = `${paq.nombre} - $${paq.precio.toLocaleString("es-CL")} CLP`;
     select.appendChild(option);
   });
-
   select.addEventListener("change", calcularTotalReserva);
 }
 
-// --- Cálculo de Reserva ---
 function calcularTotalReserva() {
   const select = document.getElementById("select-paquete");
   const cantInput = document.getElementById("cant-pasajeros");
   const spanPrecioUnitario = document.getElementById("resumen-precio-unitario");
   const spanTotal = document.getElementById("resumen-total");
-
+  if (!select || !cantInput) return;
   const idSeleccionado = parseInt(select.value);
   const cantidad = parseInt(cantInput.value) || 1;
   const paquetes = obtenerPaquetes();
   const paquete = paquetes.find(p => p.id === idSeleccionado);
-
   if (paquete) {
     const total = paquete.precio * cantidad;
-    spanPrecioUnitario.textContent = `$${paquete.precio.toLocaleString("es-CL")} CLP`;
-    spanTotal.textContent = `$${total.toLocaleString("es-CL")} CLP`;
+    if (spanPrecioUnitario) spanPrecioUnitario.textContent = `$${paquete.precio.toLocaleString("es-CL")} CLP`;
+    if (spanTotal) spanTotal.textContent = `$${total.toLocaleString("es-CL")} CLP`;
   } else {
-    spanPrecioUnitario.textContent = "$0 CLP";
-    spanTotal.textContent = "$0 CLP";
+    if (spanPrecioUnitario) spanPrecioUnitario.textContent = "$0 CLP";
+    if (spanTotal) spanTotal.textContent = "$0 CLP";
   }
 }
 
-// --- Modales ---
+function crearNuevoPaquete(event) {
+  event.preventDefault();
+  if (!usuarioActual || usuarioActual.rol !== "admin") {
+    alert("Acceso denegado: solo administradores pueden crear paquetes.");
+    return;
+  }
+  const nombre = document.getElementById("admin-paquete-nombre").value.trim();
+  const fecha = document.getElementById("admin-paquete-fecha").value;
+  const precio = parseInt(document.getElementById("admin-paquete-precio").value);
+  const cupo = parseInt(document.getElementById("admin-paquete-cupo").value);
+  const paquetes = obtenerPaquetes();
+  const nuevoPaquete = {
+    id: paquetes.length > 0 ? Math.max(...paquetes.map(p => p.id)) + 1 : 1,
+    nombre: nombre,
+    fechaSalida: fecha,
+    precio: precio,
+    cupo: cupo
+  };
+  paquetes.push(nuevoPaquete);
+  localStorage.setItem("paquetes_aventura", JSON.stringify(paquetes));
+  alert(`Paquete "${nombre}" creado exitosamente.`);
+  document.getElementById("form-nuevo-paquete").reset();
+  cargarCatalogoPaquetes();
+  poblarSelectPaquetes();
+}
+
+function eliminarPaquete(idPaquete) {
+  if (!usuarioActual || usuarioActual.rol !== "admin") return;
+  if (confirm("¿Esta seguro de que desea eliminar este paquete del catalogo?")) {
+    let paquetes = obtenerPaquetes();
+    paquetes = paquetes.filter(p => p.id !== idPaquete);
+    localStorage.setItem("paquetes_aventura", JSON.stringify(paquetes));
+    alert("Paquete eliminado del catalogo.");
+    cargarCatalogoPaquetes();
+    poblarSelectPaquetes();
+  }
+}
+
+function eliminarReserva(idReserva) {
+  if (!usuarioActual || usuarioActual.rol !== "admin") return;
+  if (confirm(`¿Esta seguro de cancelar y borrar la Reserva N° ${idReserva}?`)) {
+    let todasLasReservas = JSON.parse(localStorage.getItem("todas_las_reservas_aventura")) || [];
+    todasLasReservas = todasLasReservas.filter(r => r.id !== idReserva);
+    localStorage.setItem("todas_las_reservas_aventura", JSON.stringify(todasLasReservas));
+    alert("Reserva eliminada con exito.");
+    actualizarTablaReservas();
+  }
+}
+
 function abrirModal(idModal) {
-  document.getElementById(idModal).classList.remove("hidden");
+  const modal = document.getElementById(idModal);
+  if (modal) modal.classList.remove("hidden");
 }
 
 function cerrarModal(idModal) {
-  document.getElementById(idModal).classList.add("hidden");
+  const modal = document.getElementById(idModal);
+  if (modal) modal.classList.add("hidden");
 }
 
-// --- Registro de Cliente ---
 function registrarCliente(event) {
   event.preventDefault();
   const nombre = document.getElementById("reg-nombre").value.trim();
   const email = document.getElementById("reg-email").value.toLowerCase().trim();
   const rut = document.getElementById("reg-rut").value.trim();
   const esAdmin = email.includes("admin");
-
-  usuarioActual = { nombre, email, rut, rol: esAdmin ? "admin" : "cliente" };
+  usuarioActual = { nombre: nombre, email: email, rut: rut, rol: esAdmin ? "admin" : "cliente" };
   localStorage.setItem("usuario_aventura", JSON.stringify(usuarioActual));
-
   cerrarModal("modal-registro");
   actualizarVistaSesion();
   alert(`Usuario ${nombre} (${usuarioActual.rol.toUpperCase()}) registrado e iniciado exitosamente.`);
 }
 
-// --- Inicio de Sesión ---
 function iniciarSesion(event) {
   event.preventDefault();
   const email = document.getElementById("login-email").value.toLowerCase().trim();
   const nombreLimpio = email.split("@")[0];
   const esAdmin = email.includes("admin");
-
-  usuarioActual = { nombre: nombreLimpio, email, rut: "11.***.***-1", rol: esAdmin ? "admin" : "cliente" };
+  usuarioActual = { nombre: nombreLimpio, email: email, rut: "11.***.***-1", rol: esAdmin ? "admin" : "cliente" };
   localStorage.setItem("usuario_aventura", JSON.stringify(usuarioActual));
-
   cerrarModal("modal-login");
   actualizarVistaSesion();
   alert(`Bienvenido de nuevo, ${usuarioActual.nombre} (${usuarioActual.rol.toUpperCase()}).`);
 }
 
-// --- Estado de Sesión ---
 function cargarEstadoSesion() {
   const sesionGuardada = localStorage.getItem("usuario_aventura");
   if (sesionGuardada) {
@@ -189,58 +221,70 @@ function cargarEstadoSesion() {
   }
 }
 
-// --- Vista de Sesión ---
 function actualizarVistaSesion() {
   const btnLogin = document.getElementById("btn-login");
   const btnRegistro = document.getElementById("btn-registro");
   const btnLogout = document.getElementById("btn-logout");
-
+  const adminPanel = document.getElementById("admin-panel");
+  const thAcciones = document.getElementById("th-acciones");
   if (usuarioActual) {
-    btnLogin.classList.add("hidden");
-    btnRegistro.classList.add("hidden");
-    btnLogout.classList.remove("hidden");
-    btnLogout.textContent = `Cerrar Sesión (${usuarioActual.nombre} - ${usuarioActual.rol.toUpperCase()})`;
+    if (btnLogin) btnLogin.classList.add("hidden");
+    if (btnRegistro) btnRegistro.classList.add("hidden");
+    if (btnLogout) {
+      btnLogout.classList.remove("hidden");
+      btnLogout.textContent = `Cerrar Sesion (${usuarioActual.nombre} - ${usuarioActual.rol.toUpperCase()})`;
+    }
+    if (adminPanel) {
+      if (usuarioActual.rol === "admin") {
+        adminPanel.classList.remove("hidden");
+      } else {
+        adminPanel.classList.add("hidden");
+      }
+    }
+    if (thAcciones) {
+      if (usuarioActual.rol === "admin") {
+        thAcciones.classList.remove("hidden");
+      } else {
+        thAcciones.classList.add("hidden");
+      }
+    }
   } else {
-    btnLogin.classList.remove("hidden");
-    btnRegistro.classList.remove("hidden");
-    btnLogout.classList.add("hidden");
+    if (btnLogin) btnLogin.classList.remove("hidden");
+    if (btnRegistro) btnRegistro.classList.remove("hidden");
+    if (btnLogout) btnLogout.classList.add("hidden");
+    if (adminPanel) adminPanel.classList.add("hidden");
+    if (thAcciones) thAcciones.classList.add("hidden");
   }
+  cargarCatalogoPaquetes();
   actualizarTablaReservas();
 }
 
-// --- Cierre de Sesión ---
 function cerrarSesion() {
   usuarioActual = null;
   localStorage.removeItem("usuario_aventura");
   actualizarVistaSesion();
-  alert("Sesión cerrada correctamente.");
+  alert("Sesion cerrada correctamente.");
 }
 
-// --- Procesar Reserva ---
 function procesarReserva(event) {
   event.preventDefault();
   if (!usuarioActual) {
-    alert("Debe iniciar sesión para poder emitir una reserva.");
+    alert("Debe iniciar sesion para poder emitir una reserva.");
     abrirModal("modal-login");
     return;
   }
-
   const select = document.getElementById("select-paquete");
   const cantInput = document.getElementById("cant-pasajeros");
   const idPaquete = parseInt(select.value);
   const cantidad = parseInt(cantInput.value);
-
   const paquetes = obtenerPaquetes();
   const paquete = paquetes.find(p => p.id === idPaquete);
-
   if (!paquete) {
-    alert("Por favor seleccione un paquete válido.");
+    alert("Por favor seleccione un paquete valido.");
     return;
   }
-
   const todasLasReservas = JSON.parse(localStorage.getItem("todas_las_reservas_aventura")) || [];
   const totalCobrado = paquete.precio * cantidad;
-
   const nuevaReserva = {
     id: todasLasReservas.length > 0 ? Math.max(...todasLasReservas.map(r => r.id)) + 1 : 1,
     emailCliente: usuarioActual.email,
@@ -250,213 +294,47 @@ function procesarReserva(event) {
     total: totalCobrado,
     estado: "Confirmada"
   };
-
   todasLasReservas.push(nuevaReserva);
   localStorage.setItem("todas_las_reservas_aventura", JSON.stringify(todasLasReservas));
-
   actualizarTablaReservas();
-  alert(`Reserva N° ${nuevaReserva.id} emitida con éxito.\nMonto Total: $${totalCobrado.toLocaleString("es-CL")} CLP`);
-
+  ñalert(`Reserva N° ${nuevaReserva.id} emitida con exito.\nMonto Total: $${totalCobrado.toLocaleString("es-CL")} CLP`);
   document.getElementById("form-reserva").reset();
   calcularTotalReserva();
 }
 
-// --- Actualizar Tabla de Reservas ---
 function actualizarTablaReservas() {
   const tbody = document.getElementById("tabla-reservas-body");
+  if (!tbody) return;
   tbody.innerHTML = "";
-
   if (!usuarioActual) {
-    tbody.innerHTML = `<tr><td colspan="6">Inicie sesión para ver el historial de reservas.</td></tr>`;
+    tbody.innerHTML = `Inicie sesion para ver el historial de reservas.`;
     return;
   }
-
   const todasLasReservas = JSON.parse(localStorage.getItem("todas_las_reservas_aventura")) || [];
- }
-
-// --- Modales ---
-function abrirModal(idModal) {
-  document.getElementById(idModal).classList.remove("hidden");
-}
-
-function cerrarModal(idModal) {
-  document.getElementById(idModal).classList.add("hidden");
-}
-
-// --- Registro de Cliente ---
-function registrarCliente(event) {
-  event.preventDefault();
-  const nombre = document.getElementById("reg-nombre").value.trim();
-  const email = document.getElementById("reg-email").value.toLowerCase().trim();
-  const rut = document.getElementById("reg-rut").value.trim();
-  const esAdmin = email.includes("admin");
-
-  usuarioActual = { nombre, email, rut, rol: esAdmin ? "admin" : "cliente" };
-  localStorage.setItem("usuario_aventura", JSON.stringify(usuarioActual));
-
-  cerrarModal("modal-registro");
-  actualizarVistaSesion();
-  alert(`Usuario ${nombre} (${usuarioActual.rol.toUpperCase()}) registrado e iniciado exitosamente.`);
-}
-
-// --- Inicio de Sesión ---
-function iniciarSesion(event) {
-  event.preventDefault();
-  const email = document.getElementById("login-email").value.toLowerCase().trim();
-  const nombreLimpio = email.split("@")[0];
-  const esAdmin = email.includes("admin");
-
-  usuarioActual = { nombre: nombreLimpio, email, rut: "11.***.***-1", rol: esAdmin ? "admin" : "cliente" };
-  localStorage.setItem("usuario_aventura", JSON.stringify(usuarioActual));
-
-  cerrarModal("modal-login");
-  actualizarVistaSesion();
-  alert(`Bienvenido de nuevo, ${usuarioActual.nombre} (${usuarioActual.rol.toUpperCase()}).`);
-}
-
-// --- Estado de Sesión ---
-function cargarEstadoSesion() {
-  const sesionGuardada = localStorage.getItem("usuario_aventura");
-  if (sesionGuardada) {
-    usuarioActual = JSON.parse(sesionGuardada);
-    actualizarVistaSesion();
-  }
-}
-
-// --- Vista de Sesión ---
-function actualizarVistaSesion() {
-  const btnLogin = document.getElementById("btn-login");
-  const btnRegistro = document.getElementById("btn-registro");
-  const btnLogout = document.getElementById("btn-logout");
-
-  if (usuarioActual) {
-    btnLogin.classList.add("hidden");
-    btnRegistro.classList.add("hidden");
-    btnLogout.classList.remove("hidden");
-    btnLogout.textContent = `Cerrar Sesión (${usuarioActual.nombre} - ${usuarioActual.rol.toUpperCase()})`;
-  } else {
-    btnLogin.classList.remove("hidden");
-    btnRegistro.classList.remove("hidden");
-    btnLogout.classList.add("hidden");
-  }
-  actualizarTablaReservas();
-}
-
-// --- Cierre de Sesión ---
-function cerrarSesion() {
-  usuarioActual = null;
-  localStorage.removeItem("usuario_aventura");
-  actualizarVistaSesion();
-  alert("Sesión cerrada correctamente.");
-}
-
-// --- Procesar Reserva ---
-function procesarReserva(event) {
-  event.preventDefault();
-  if (!usuarioActual) {
-    alert("Debe iniciar sesión para poder emitir una reserva.");
-    abrirModal("modal-login");
-    return;
-  }
-
-  const select = document.getElementById("select-paquete");
-  const cantInput = document.getElementById("cant-pasajeros");
-  const idPaquete = parseInt(select.value);
-  const cantidad = parseInt(cantInput.value);
-
-  const paquetes = obtenerPaquetes();
-  const paquete = paquetes.find(p => p.id === idPaquete);
-
-  if (!paquete) {
-    alert("Por favor seleccione un paquete válido.");
-    return;
-  }
-
-  const todasLasReservas = JSON.parse(localStorage.getItem("todas_las_reservas_aventura")) || [];
-  const totalCobrado = paquete.precio * cantidad;
-
-  const nuevaReserva = {
-    id: todasLasReservas.length > 0 ? Math.max(...todasLasReservas.map(r => r.id)) + 1 : 1,
-    emailCliente: usuarioActual.email,
-    cliente: usuarioActual.nombre,
-    paquete: paquete.nombre,
-    pasajeros: cantidad,
-    total: totalCobrado,
-    estado: "Confirmada"
-  };
-
-  todasLasReservas.push(nuevaReserva);
-  localStorage.setItem("todas_las_reservas_aventura", JSON.stringify(todasLasReservas));
-
-  actualizarTablaReservas();
-  alert(`Reserva N° ${nuevaReserva.id} emitida con éxito.\nMonto Total: $${totalCobrado.toLocaleString("es-CL")} CLP`);
-
-  document.getElementById("form-reserva").reset();
-  calcularTotalReserva();
-}
-
-// --- Actualizar Tabla de Reservas ---
-function actualizarTablaReservas() {
-  const tbody = document.getElementById("tabla-reservas-body");
-  tbody.innerHTML = "";
-
-  if (!usuarioActual) {
-    tbody.innerHTML = `<tr><td colspan="6">Inicie sesión para ver el historial de reservas.</td></tr>`;
-    return;
-  }
-
-    const todasLasReservas = JSON.parse(localStorage.getItem("todas_las_reservas_aventura")) || [];
+  let reservasAVisibilizar = [];
   const esAdmin = usuarioActual.rol === "admin";
-  const reservasAVisibilizar = esAdmin ? todasLasReservas : todasLasReservas.filter(r => r.emailCliente === usuarioActual.email);
-
+  if (esAdmin) {
+    reservasAVisibilizar = todasLasReservas;
+  } else {
+    reservasAVisibilizar = todasLasReservas.filter(r => r.emailCliente === usuarioActual.email);
+  }
   if (reservasAVisibilizar.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6">${esAdmin ? "No hay reservas registradas en el sistema." : "No registra reservas emitidas en su cuenta."}</td></tr>`;
+    tbody.innerHTML = `${esAdmin ? "No hay reservas registradas en el sistema." : "No registra reservas emitidas en su cuenta."}`;
     return;
   }
-
   reservasAVisibilizar.forEach(res => {
     const row = document.createElement("tr");
+    let tdAccionAdmin = "";
+    if (esAdmin) {
+      tdAccionAdmin = ``;
+    }
     row.innerHTML = `
-      <td>#${res.id}</td>
-      <td>${res.paquete} ${esAdmin ? `<br /><small>${res.emailCliente}</small>` : ''}</td>
-      <td>${res.pasajeros} persona(s)</td>
-      <td>$${res.total.toLocaleString("es-CL")} CLP</td>
-      <td><strong>${res.estado}</strong></td>
-      <td>${esAdmin ? `<button class="btn-danger" onclick="eliminarReserva(${res.id})">Eliminar</button>` : ''}</td>
+      #${res.id} ${res.paquete} ${esAdmin ? `<br /><small>(${res.emailCliente})</small>` : ''}
+      ${res.pasajeros} persona(s)
+      $${res.total.toLocaleString("es-CL")} CLP
+      <strong>${res.estado}</strong>
+      ${tdAccionAdmin}
     `;
     tbody.appendChild(row);
   });
 }
-const esAdmin = usuarioActual.rol === "admin";
-const reservasAVisibilizar = esAdmin ? todasLasReservas : todasLasReservas.filter(r => r.emailCliente === usuarioActual.email);
-
-if (reservasAVisibilizar.length === 0) {
-  tbody.innerHTML = `
-    <tr>
-      <td colspan="6" class="text-center">
-        ${esAdmin ? "No hay reservas registradas en el sistema." : "No registra reservas emitidas en su cuenta."}
-      </td>
-    </tr>
-  `;
-  return;
-}
-
-reservasAVisibilizar.forEach(res => {
-  const row = document.createElement("tr");
-
-  let tdAccionAdmin = "";
-  if (esAdmin) {
-    tdAccionAdmin = `<td><button class="btn-danger" onclick="eliminarReserva(${res.id})">Eliminar</button></td>`;
-  }
-
-  row.innerHTML = `
-    <td>#${res.id}</td>
-    <td>${res.paquete} ${esAdmin ? `<br /><small>${res.emailCliente}</small>` : ''}</td>
-    <td>${res.pasajeros} persona(s)</td>
-    <td>$${res.total.toLocaleString("es-CL")} CLP</td>
-    <td><strong>${res.estado}</strong></td>
-    ${tdAccionAdmin}
-  `;
-  tbody.appendChild(row);
-});
-
