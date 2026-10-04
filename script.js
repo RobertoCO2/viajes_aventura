@@ -149,39 +149,117 @@ function crearNuevoPaquete(event) {
   document.getElementById("form-nuevo-paquete").reset();
   cargarCatalogoPaquetes();
   poblarSelectPaquetes();
+  mostrarPaquetesAdmin();
 }
 
-function registrarCliente(event) {
-  event.preventDefault();
-  const nombre = document.getElementById("reg-nombre").value.trim();
-  const email = document.getElementById("reg-email").value.toLowerCase().trim();
-  const rut = document.getElementById("reg-rut").value.trim();
-  const esAdmin = email.includes("admin");
-  usuarioActual = { nombre: nombre, email: email, rut: rut, rol: esAdmin ? "admin" : "cliente" };
-  localStorage.setItem("usuario_aventura", JSON.stringify(usuarioActual));
-  cerrarModal("modal-registro");
-  actualizarVistaSesion();
-  alert(`Usuario ${nombre} (${usuarioActual.rol.toUpperCase()}) registrado e iniciado exitosamente.`);
-}
-
-function iniciarSesion(event) {
-  event.preventDefault();
-  const email = document.getElementById("login-email").value.toLowerCase().trim();
-  const nombreLimpio = email.split("@")[0];
-  const esAdmin = email.includes("admin");
-  usuarioActual = { nombre: nombreLimpio, email: email, rut: "11.***.***-1", rol: esAdmin ? "admin" : "cliente" };
-  localStorage.setItem("usuario_aventura", JSON.stringify(usuarioActual));
-  cerrarModal("modal-login");
-  actualizarVistaSesion();
-  alert(`Bienvenido de nuevo, ${usuarioActual.nombre} (${usuarioActual.rol.toUpperCase()}).`);
-}
-
-function cargarEstadoSesion() {
-  const sesionGuardada = localStorage.getItem("usuario_aventura");
-  if (sesionGuardada) {
-    usuarioActual = JSON.parse(sesionGuardada);
-    actualizarVistaSesion();
+function eliminarPaquete(idPaquete) {
+  if (!usuarioActual || usuarioActual.rol !== "admin") {
+    alert("Acceso denegado: solo administradores pueden eliminar paquetes.");
+    return;
   }
+  let paquetes = obtenerPaquetes();
+  paquetes = paquetes.filter(p => p.id !== idPaquete);
+  localStorage.setItem("paquetes_aventura", JSON.stringify(paquetes));
+  alert(`Paquete ID ${idPaquete} eliminado correctamente.`);
+  cargarCatalogoPaquetes();
+  poblarSelectPaquetes();
+  mostrarPaquetesAdmin();
+}
+
+function mostrarPaquetesAdmin() {
+  const tbody = document.getElementById("tabla-paquetes-body");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  const paquetes = obtenerPaquetes();
+  paquetes.forEach(paq => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${paq.id}</td>
+      <td>${paq.nombre}</td>
+      <td>${paq.fechaSalida}</td>
+      <td>$${paq.precio.toLocaleString("es-CL")} CLP</td>
+      <td>${paq.cupo}</td>
+      <td><button onclick="eliminarPaquete(${paq.id})">Eliminar</button></td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+function procesarReserva(event) {
+  event.preventDefault();
+  if (!usuarioActual) {
+    alert("Debe iniciar sesión para poder emitir una reserva.");
+    abrirModal("modal-login");
+    return;
+  }
+
+  const select = document.getElementById("select-paquete");
+  const cantInput = document.getElementById("cant-pasajeros");
+  const idPaquete = parseInt(select.value);
+  const cantidad = parseInt(cantInput.value);
+
+  const paquetes = obtenerPaquetes();
+  const paquete = paquetes.find(p => p.id === idPaquete);
+  if (!paquete) {
+    alert("Por favor seleccione un paquete válido.");
+    return;
+  }
+
+  const todasLasReservas = JSON.parse(localStorage.getItem("todas_las_reservas_aventura")) || [];
+  const totalCobrado = paquete.precio * cantidad;
+
+  const nuevaReserva = {
+    id: todasLasReservas.length > 0 ? Math.max(...todasLasReservas.map(r => r.id)) + 1 : 1,
+    emailCliente: usuarioActual.email,
+    cliente: usuarioActual.nombre,
+    paquete: paquete.nombre,
+    pasajeros: cantidad,
+    total: totalCobrado,
+    estado: "Confirmada"
+  };
+
+  todasLasReservas.push(nuevaReserva);
+  localStorage.setItem("todas_las_reservas_aventura", JSON.stringify(todasLasReservas));
+
+  actualizarTablaReservas();
+  alert(`Reserva N° ${nuevaReserva.id} emitida con éxito.\nMonto Total: $${totalCobrado.toLocaleString("es-CL")} CLP`);
+
+  document.getElementById("form-reserva").reset();
+  calcularTotalReserva();
+}
+
+function actualizarTablaReservas() {
+  const tbody = document.getElementById("tabla-reservas-body");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  if (!usuarioActual) {
+    tbody.innerHTML = `<tr><td colspan="6">Inicie sesion para ver el historial de reservas.</td></tr>`;
+    return;
+  }
+  const todasLasReservas = JSON.parse(localStorage.getItem("todas_las_reservas_aventura")) || [];
+  let reservasAVisibilizar = [];
+  const esAdmin = usuarioActual.rol === "admin";
+  if (esAdmin) {
+    reservasAVisibilizar = todasLasReservas;
+  } else {
+    reservasAVisibilizar = todasLasReservas.filter(r => r.emailCliente === usuarioActual.email);
+  }
+  if (reservasAVisibilizar.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6">${esAdmin ? "No hay reservas registradas en el sistema." : "No registra reservas emitidas en su cuenta."}</td></tr>`;
+    return;
+  }
+  reservasAVisibilizar.forEach(res => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>#${res.id}</td>
+      <td>${res.paquete} ${esAdmin ? `<br /><small>(${res.emailCliente})</small>` : ''}</td>
+      <td>${res.pasajeros}</td>
+      <td>$${res.total.toLocaleString("es-CL")} CLP</td>
+      <td><strong>${res.estado}</strong></td>
+      <td>${esAdmin ? `<button onclick="cambiarEstadoReserva(${res.id})">Modificar</button>` : ''}</td>
+    `;
+    tbody.appendChild(row);
+  });
 }
 
 function actualizarVistaSesion() {
@@ -204,6 +282,7 @@ function actualizarVistaSesion() {
       if (adminPanel) adminPanel.classList.remove("hidden");
       if (clientePanel) clientePanel.classList.add("hidden");
       if (thAcciones) thAcciones.classList.remove("hidden");
+      mostrarPaquetesAdmin();
     } else {
       if (adminPanel) adminPanel.classList.add("hidden");
       if (clientePanel) clientePanel.classList.remove("hidden");
@@ -229,89 +308,10 @@ function cerrarSesion() {
   alert("Sesion cerrada correctamente.");
 }
 
-function procesarReserva(event) {
-  event.preventDefault();
-  if (!usuarioActual) {
-    alert("Debe iniciar sesion para poder emitir una reserva.");
-    abrirModal("modal-login");
-    return;
-  }
-  const select = document.getElementById("select-paquete");
-  const cantInput = document.getElementById("cant-pasajeros");
-  const idPaquete = parseInt(select.value);
-  const cantidad = parseInt(cantInput.value);
-  const paquetes = obtenerPaquetes();
-  const paquete = paquetes.find(p => p.id === idPaquete);
-  if (!paquete) {
-    alert("Por favor seleccione un paquete valido.");
-    return;
-  }
-  const todasLasReservas = JSON.parse(localStorage.getItem("todas_las_reservas_aventura")) || [];
-  const totalCobrado = paquete.precio * cantidad;
-  const nuevaReserva = {
-    id: todasLasReservas.length > 0 ? Math.max(...todasLasReservas.map(r => r.id)) + 1 : 1,
-    emailCliente: usuarioActual.email,
-    cliente: usuarioActual.nombre,
-    paquete: paquete.nombre,
-    pasajeros: cantidad,
-    total: totalCobrado,
-    estado: "Confirmada"
-  };
-  todasLasReservas.push(nuevaReserva);
-  localStorage.setItem("todas_las_reservas_aventura", JSON.stringify(todasLasReservas));
-  actualizarTablaReservas();
-  alert(`Reserva N° ${nuevaReserva.id} emitida con exito.\nMonto Total: $${totalCobrado.toLocaleString("es-CL")} CLP`);
-  document.getElementById("form-reserva").reset();
-  calcularTotalReserva();
-}
-
-function actualizarTablaReservas() {
-  const tbody = document.getElementById("tabla-reservas-body");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-  if (!usuarioActual) {
-    tbody.innerHTML = `Inicie sesion para ver el historial de reservas.`;
-    return;
-  }
-  const todasLasReservas = JSON.parse(localStorage.getItem("todas_las_reservas_aventura")) || [];
-  let reservasAVisibilizar = [];
-  const esAdmin = usuarioActual.rol === "admin";
-  if (esAdmin) {
-    reservasAVisibilizar = todasLasReservas;
-  } else {
-    reservasAVisibilizar = todasLasReservas.filter(r => r.emailCliente === usuarioActual.email);
-  }
-  if (reservasAVisibilizar.length === 0) {
-    tbody.innerHTML = `${esAdmin ? "No hay reservas registradas en el sistema." : "No registra reservas emitidas en su cuenta."}`;
-    return;
-  }
-  reservasAVisibilizar.forEach(res => {
-    const row = document.createElement("tr");
-    let tdAccionAdmin = "";
-    if (esAdmin) {
-      tdAccionAdmin = ``;
-    }
-    row.innerHTML = `
-      <td>#${res.id}</td>
-      <td>${res.paquete} ${esAdmin ? `<br /><small>(${res.emailCliente})</small>` : ''}</td>
-      <td>${res.pasajeros}</td>
-      <td>$${res.total.toLocaleString("es-CL")} CLP</td>
-      <td><strong>${res.estado}</strong></td>
-      <td>${tdAccionAdmin}</td>
-    `;
-    tbody.appendChild(row);
-  });
-}
-
-function abrirModal(idModal) {
-  const modal = document.getElementById(idModal);
-  if (modal) modal.classList.remove("hidden");
-}
-
 function registrarCliente(event) {
   event.preventDefault();
   const nombre = document.getElementById("reg-nombre").value.trim();
-  const email = document.getElementById("reg-email").value.toLowerCase().trim();
+  const email = document.getElementById("reg-email").toLowerCase().trim();
   const rut = document.getElementById("reg-rut").value.trim();
   const esAdmin = email.includes("admin");
   usuarioActual = { nombre: nombre, email: email, rut: rut, rol: esAdmin ? "admin" : "cliente" };
@@ -339,4 +339,14 @@ function cargarEstadoSesion() {
     usuarioActual = JSON.parse(sesionGuardada);
     actualizarVistaSesion();
   }
+}
+
+function abrirModal(idModal) {
+  const modal = document.getElementById(idModal);
+  if (modal) modal.classList.remove("hidden");
+}
+
+function cerrarModal(idModal) {
+  const modal = document.getElementById(idModal);
+  if (modal) modal.classList.add("hidden");
 }
