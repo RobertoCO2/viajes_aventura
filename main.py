@@ -51,44 +51,54 @@ def leer_clave_efecto_mascara(prompt: str = "Contraseña: ") -> str:
     
 def ejecutar_menu_cliente(db: BaseDatos, cliente_actual: Cliente) -> tuple:
     print("\n" + "="*50)
-    print(" AGENCIA DE VIAJES AVENTURA - SISTEMA DE RESERVAS")
+    print("   AGENCIA DE VIAJES AVENTURA - SISTEMA DE RESERVAS")
     print("="*50)
-    print(f"Sesión activa: {cliente_actual.nombre_completo}")
-    print("1. Ver Catálogo de Destinos")
-    print("2. Armar y Reservar Paquete Personalizado")
+    print(f"Sesion activa: {cliente_actual.nombre_completo}")
+    print("1. Ver Catalogo de Destinos")
+    print("2. Reservar Paquete Turistico")
     print("3. Ver Historial de Mis Reservas")
-    print("4. Cerrar Sesión")
+    print("4. Cerrar Sesion")
     print("5. Salir")
 
-    opcion = input("\nSeleccione una opción (1-5): ").strip()
+    opcion = input("\nSeleccione una opcion (1-5): ").strip()
 
     if opcion == "1":
         mostrar_catalogo_visita(db)
         return cliente_actual, False
+
     elif opcion == "2":
         try:
-            destinos_elegidos = seleccionar_destinos_por_ids(db)
-            if not destinos_elegidos:
+            destinos = db.obtener_todos_los_destinos()
+            if len(destinos) < 2:
+                print("\nSe requieren al menos 2 destinos en la BD para cotizar un paquete.")
+                input("\nPresione solo Enter para continuar...")
                 return cliente_actual, False
 
-            nombre_paquete = input("Nombre comercial para su Paquete: ").strip() or "Paquete Personalizado"
-            cant_personas = leer_entero("¿Para cuántas personas desea reservar?: ", min_val=1)
-            fecha_salida = date.today() + timedelta(days=15)
-            fecha_regreso = fecha_salida + timedelta(days=5)
+            # Paquete publicado de catalogo
+            paquete = Paquete(
+                1,
+                "Escapada de Fin de Semana",
+                date.today() + timedelta(days=15),
+                date.today() + timedelta(days=20),
+                10,
+                destinos[:2]
+            )
 
-        # 1. Crear y guardar el paquete
-            paquete_tmp = Paquete(0, nombre_paquete, fecha_salida, fecha_regreso, 10, destinos_elegidos)
-            id_paq = db.guardar_paquete(paquete_tmp)
-            paquete = Paquete(id_paq, nombre_paquete, fecha_salida, fecha_regreso, 10, destinos_elegidos)
+            print(f"\nPaquete Disponible: {paquete.nombre}")
+            print(f"Fecha de Salida: {paquete.fecha_salida} | Cupo Maximo: {paquete.cupo_maximo} personas")
+            print(f"Precio publicado por persona: ${paquete.precio_publicado:,.0f}")
 
-        # 2. Crear y guardar la reserva
+            cant_personas = leer_entero("\n¿Para cuantas personas desea reservar?: ", min_val=1)
+
             reserva = Reserva(0, cliente_actual, paquete, cant_personas)
             id_reserva = db.guardar_reserva(reserva)
 
             print("\n¡RESERVA EMITIDA Y CONFIRMADA EXITOSAMENTE!")
-            print(f"Reserva N°{id_reserva} | Total: ${reserva.monto_total_congelado:,.0f}")
+            print(f"Reserva N°{id_reserva} | Pasajeros: {cant_personas} | Total Congelado: ${reserva.total_cobrado:,.0f}")
+
         except Exception as e:
-            print(f"\nOcurrió un inconveniente al procesar la reserva: {e}")
+            print(f"\nOcurrio un inconveniente al procesar la reserva: {e}")
+
         input("\nPresione solo Enter para continuar...")
         return cliente_actual, False
 
@@ -99,14 +109,16 @@ def ejecutar_menu_cliente(db: BaseDatos, cliente_actual: Cliente) -> tuple:
             print("Usted no registra reservas actualmente en el sistema.")
         else:
             for r in reservas:
-                print(f"Reserva N°{r['id_reserva']} | Paquete: {r['paquete_nombre']} | "
-                      f"Personas: {r['cantidad_personas']} | Total: ${r['monto_total_congelado']:,.0f} | "
-                      f"Fecha: {r['fecha_salida']} | Estado: {r['estado']}")
+                print(
+                    f"Reserva N°{r['id_reserva']} | Paquete: {r['paquete_nombre']} | "
+                    f"Personas: {r['cantidad_personas']} | Total: ${r['monto_total_congelado']:,.0f} | "
+                    f"Fecha: {r['fecha_salida']} | Estado: {r['estado']}"
+                )
         input("\nPresione solo Enter para continuar...")
         return cliente_actual, False
 
     elif opcion == "4":
-        print("\nSesión cerrada correctamente.")
+        print("\nSesion cerrada correctamente.")
         input("\nPresione solo Enter para continuar...")
         return None, False
 
@@ -115,9 +127,10 @@ def ejecutar_menu_cliente(db: BaseDatos, cliente_actual: Cliente) -> tuple:
         return None, True
 
     else:
-        print("\nOpción no válida.")
+        print("\nOpcion no valida.")
         input("\nPresione solo Enter para continuar...")
         return cliente_actual, False
+
 
     
 def leer_entero(mensaje: str, min_val: Optional[int] = None, max_val: Optional[int] = None) -> int:
