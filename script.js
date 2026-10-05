@@ -1,122 +1,163 @@
-let usuarioActual = null;
-let tipoCambioUSD = 950.0;
+var usuarioActual = null;
+var tipoCambioUSD = 950.0;
 
+// Helper: Sanitización XSS (Previene Inyección HTML/JS en innerHTML)
+function escapeHTML(str) {
+  if (str === null || str === undefined) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Datos Semilla (Destinos y Paquetes)
 const destinosDemo = [
-    { id: 1, nombre: "Cajon del Maipo", zona: "Region Metropolitana", costo: 45000 },
-    { id: 2, nombre: "Salar de Surire", zona: "Region de Arica y Parinacota", costo: 310000 },
-    { id: 3, nombre: "Valle del Elqui", zona: "Region de Coquimbo", costo: 120000 },
-    { id: 4, nombre: "Parque Conguillio", zona: "Region de La Araucania", costo: 185000 },
-    { id: 5, nombre: "San Pedro de Atacama", zona: "Region de Antofagasta", costo: 400000 }
+  { id: 1, nombre: "Cajón del Maipo", zona: "Región Metropolitana", costo: 45000 },
+  { id: 2, nombre: "Salar de Surire", zona: "Región de Arica y Parinacota", costo: 310000 },
+  { id: 3, nombre: "Valle del Elqui", zona: "Región de Coquimbo", costo: 120000 },
+  { id: 4, nombre: "Parque Conguillío", zona: "Región de La Araucanía", costo: 185000 },
+  { id: 5, nombre: "San Pedro de Atacama", zona: "Región de Antofagasta", costo: 400000 }
 ];
 
 const paquetesIniciales = [
-    { id: 1, nombre: "Escapada Centro-Norte", fechaSalida: "2026-10-24", precio: 426000, cupo: 10 },
-    { id: 2, nombre: "Aventura Sur y Lagos", fechaSalida: "2026-11-05", precio: 580000, cupo: 8 },
-    { id: 3, nombre: "Ruta del Elqui y Astronomia", fechaSalida: "2026-11-12", precio: 290000, cupo: 12 }
+  { id: 1, nombre: "Escapada Centro-Norte", fechaSalida: "2026-10-24", precio: 426000, cupo: 10 },
+  { id: 2, nombre: "Aventura Sur y Lagos", fechaSalida: "2026-11-05", precio: 580000, cupo: 8 },
+  { id: 3, nombre: "Ruta del Elqui y Astronomía", fechaSalida: "2026-11-12", precio: 290000, cupo: 12 }
 ];
 
+// Inicialización Segura al cargar el DOM
 document.addEventListener("DOMContentLoaded", () => {
-    inicializarPaquetes();
-    obtenerTipoCambio();
-    cargarCatalogoDestinos();
-    cargarCatalogoPaquetes();
-    poblarSelectPaquetes();
-    cargarEstadoSesion();
+  inicializarPaquetes();
+  obtenerTipoCambio();
+  cargarCatalogoDestinos();
+  cargarCatalogoPaquetes();
+  poblarSelectPaquetes();
+  cargarEstadoSesion();
 });
 
+// Gestión Segura de Storage (Captura de errores JSON)
+function safeStorageGet(key, defaultValue) {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : defaultValue;
+  } catch (e) {
+    console.error(`Error al leer key '${key}' de localStorage:`, e);
+    return defaultValue;
+  }
+}
+
+function safeStorageSet(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (e) {
+    console.error(`Error al escribir key '${key}' en localStorage:`, e);
+    return false;
+  }
+}
+
 function obtenerPaquetes() {
-    const creados = localStorage.getItem("paquetes_aventura");
-    if (!creados) {
-        localStorage.setItem("paquetes_aventura", JSON.stringify(paquetesIniciales));
-        return paquetesIniciales;
-    }
-    return JSON.parse(creados);
+  const creados = safeStorageGet("paquetes_aventura", null);
+  if (!creados || !Array.isArray(creados) || creados.length === 0) {
+    safeStorageSet("paquetes_aventura", paquetesIniciales);
+    return paquetesIniciales;
+  }
+  return creados;
 }
 
 function inicializarPaquetes() {
-    obtenerPaquetes();
+  obtenerPaquetes();
 }
 
+// API Externa: Tipo de Cambio USD/CLP
 async function obtenerTipoCambio() {
-    const contenedor = document.getElementById("indicador-dolar");
-    try {
-        const respuesta = await fetch("https://mindicador.cl/api/dolar");
-        if (respuesta.ok) {
-            const datos = await respuesta.json();
-            tipoCambioUSD = datos.serie.valor;
-            contenedor.innerText = `Tipo de Cambio Hoy: 1 USD = $${tipoCambioUSD.toLocaleString("es-CL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CLP`;
-        } else {
-            throw new Error("Respuesta no satisfactoria de la API");
+  const contenedor = document.getElementById("indicador-dolar");
+  try {
+    const respuesta = await fetch("https://mindicador.cl/api/dolar");
+    if (respuesta.ok) {
+      const datos = await respuesta.json();
+      if (datos && datos.serie && datos.serie[0] && datos.serie[0].valor) {
+        tipoCambioUSD = parseFloat(datos.serie[0].valor);
+        if (contenedor) {
+          contenedor.innerText = `Tipo de Cambio Hoy: 1 USD = $${tipoCambioUSD.toLocaleString("es-CL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CLP`;
         }
-    } catch (error) {
-        contenedor.innerText = `Tipo de Cambio Estimado: 1 USD = $${tipoCambioUSD.toLocaleString("es-CL")} CLP`;
+      }
+    } else {
+      throw new Error("API respondió con código de error");
     }
-    cargarCatalogoDestinos();
-    cargarCatalogoPaquetes();
+  } catch (error) {
+    if (contenedor) {
+      contenedor.innerText = `Tipo de Cambio Estimado: 1 USD = $${tipoCambioUSD.toLocaleString("es-CL")} CLP`;
+    }
+  }
+  cargarCatalogoDestinos();
+  cargarCatalogoPaquetes();
 }
 
+// Renderizado de Destinos con Protección XSS
 function cargarCatalogoDestinos() {
-    const grid = document.getElementById("grid-destinos");
-    if (!grid) return;
-    grid.innerHTML = "";
-
-    destinosDemo.forEach(dest => {
-        const precioUSD = (dest.costo / tipoCambioUSD).toFixed(2);
-        const card = document.createElement("div");
-        card.className = "card";
-        card.innerHTML = `
-            <h3>${dest.nombre}</h3>
-            <p><strong>Ubicacion:</strong> ${dest.zona}</p>
-            <p>$${dest.costo.toLocaleString("es-CL")} CLP <small>(USD $${precioUSD})</small></p>
-        `;
-        grid.appendChild(card);
-    });
+  const grid = document.getElementById("grid-destinos");
+  if (!grid) return;
+  grid.innerHTML = "";
+  destinosDemo.forEach(dest => {
+    const precioUSD = (dest.costo / tipoCambioUSD).toFixed(2);
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <h3>${escapeHTML(dest.nombre)}</h3>
+      <p><strong>Ubicación:</strong> ${escapeHTML(dest.zona)}</p>
+      <p>$${Number(dest.costo).toLocaleString("es-CL")} CLP <small>(USD $${precioUSD})</small></p>
+    `;
+    grid.appendChild(card);
+  });
 }
 
+// Renderizado de Paquetes con Protección XSS y Verificación de Roles
 function cargarCatalogoPaquetes() {
-    const grid = document.getElementById("grid-paquetes");
-    if (!grid) return;
-    grid.innerHTML = "";
-
-    const paquetes = obtenerPaquetes();
-
-    paquetes.forEach(paq => {
-        const precioUSD = (paq.precio / tipoCambioUSD).toFixed(2);
-        const card = document.createElement("div");
-        card.className = "card";
-
-        let botonEliminar = "";
-        if (usuarioActual && usuarioActual.rol === "admin") {
-            botonEliminar = ``;
-        }
-
-        card.innerHTML = `
-            <h3>${paq.nombre}</h3>
-            <p><strong>Fecha Salida:</strong> ${paq.fechaSalida}</p>
-            <p><strong>Cupo Disponible:</strong> ${paq.cupo} personas</p>
-            <p>$${paq.precio.toLocaleString("es-CL")} CLP <small>(USD $${precioUSD})</small></p>
-            ${botonEliminar}
-        `;
-        grid.appendChild(card);
-    });
+  const grid = document.getElementById("grid-paquetes");
+  if (!grid) return;
+  grid.innerHTML = "";
+  const paquetes = obtenerPaquetes();
+  const esAdmin = usuarioActual && usuarioActual.email && (usuarioActual.rol === "admin" || usuarioActual.email.includes("admin"));
+  paquetes.forEach(paq => {
+    const precioUSD = (paq.precio / tipoCambioUSD).toFixed(2);
+    const card = document.createElement("div");
+    card.className = "card";
+    let botonEliminar = "";
+    if (esAdmin) {
+      botonEliminar = `<button class="btn-eliminar" data-id="${paq.id}">Eliminar</button>`;
+    }
+    card.innerHTML = `
+      <h3>${escapeHTML(paq.nombre)}</h3>
+      <p><strong>Fecha Salida:</strong> ${escapeHTML(paq.fechaSalida)}</p>
+      <p><strong>Cupo Disponible:</strong> ${parseInt(paq.cupo)} personas</p>
+      <p>$${Number(paq.precio).toLocaleString("es-CL")} CLP <small>(USD $${precioUSD})</small></p>
+      ${botonEliminar}
+    `;
+    grid.appendChild(card);
+  });
 }
-
+// Poblar Select de Paquetes
 function poblarSelectPaquetes() {
     const select = document.getElementById("select-paquete");
     if (!select) return;
+    
     select.innerHTML = '<option value="">-- Seleccione un Paquete --</option>';
-
     const paquetes = obtenerPaquetes();
+
     paquetes.forEach(paq => {
         const option = document.createElement("option");
         option.value = paq.id;
-        option.textContent = `${paq.nombre} - $${paq.precio.toLocaleString("es-CL")} CLP`;
+        option.textContent = `${paq.nombre} - $${Number(paq.precio).toLocaleString("es-CL")} CLP`;
         select.appendChild(option);
     });
 
-    select.addEventListener("change", calcularTotalReserva);
+    select.onchange = calcularTotalReserva;
 }
 
+// Cálculo Dinámico de Reserva
 function calcularTotalReserva() {
     const select = document.getElementById("select-paquete");
     const cantInput = document.getElementById("cant-pasajeros");
@@ -126,21 +167,22 @@ function calcularTotalReserva() {
     if (!select || !cantInput) return;
 
     const idSeleccionado = parseInt(select.value);
-    const cantidad = parseInt(cantInput.value) || 1;
+    const cantidad = Math.max(1, parseInt(cantInput.value) || 1);
 
     const paquetes = obtenerPaquetes();
     const paquete = paquetes.find(p => p.id === idSeleccionado);
 
     if (paquete) {
         const total = paquete.precio * cantidad;
-        if (spanPrecioUnitario) spanPrecioUnitario.textContent = `$${paquete.precio.toLocaleString("es-CL")} CLP`;
-        if (spanTotal) spanTotal.textContent = `$${total.toLocaleString("es-CL")} CLP`;
+        if (spanPrecioUnitario) spanPrecioUnitario.textContent = `$${Number(paquete.precio).toLocaleString("es-CL")} CLP`;
+        if (spanTotal) spanTotal.textContent = `$${Number(total).toLocaleString("es-CL")} CLP`;
     } else {
         if (spanPrecioUnitario) spanPrecioUnitario.textContent = "$0 CLP";
         if (spanTotal) spanTotal.textContent = "$0 CLP";
     }
 }
 
+// Control de Modales
 function abrirModal(idModal) {
     const modal = document.getElementById(idModal);
     if (modal) modal.classList.remove("hidden");
@@ -151,21 +193,34 @@ function cerrarModal(idModal) {
     if (modal) modal.classList.add("hidden");
 }
 
-// REGISTRO DE USUARIO
+// Registro de Cliente con Validación y Enmascaramiento
 function registrarCliente(event) {
     event.preventDefault();
-    const nombre = document.getElementById("reg-nombre").value.trim();
-    const email = document.getElementById("reg-email").value.toLowerCase().trim();
-    const rut = document.getElementById("reg-rut").value.trim();
-    const password = document.getElementById("reg-password").value;
+    
+    const nombreInput = document.getElementById("reg-nombre");
+    const emailInput = document.getElementById("reg-email");
+    const rutInput = document.getElementById("reg-rut");
+    const passInput = document.getElementById("reg-password");
 
-    if (!password || password.length < 4) {
+    if (!nombreInput || !emailInput || !passInput) return;
+
+    const nombre = nombreInput.value.trim();
+    const email = emailInput.value.toLowerCase().trim();
+    const rut = rutInput ? rutInput.value.trim() : "";
+    const password = passInput.value;
+
+    if (!nombre || !email || !password) {
+        alert("Por favor complete todos los campos obligatorios.");
+        return;
+    }
+
+    if (password.length < 4) {
         alert("La contraseña debe tener al menos 4 caracteres.");
         return;
     }
 
     const esAdmin = email.includes("admin");
-    const usuariosRegistrados = JSON.parse(localStorage.getItem("usuarios_aventura_db")) || [];
+    const usuariosRegistrados = safeStorageGet("usuarios_aventura_db", []);
 
     const existe = usuariosRegistrados.find(u => u.email === email);
     if (existe) {
@@ -182,7 +237,7 @@ function registrarCliente(event) {
     };
 
     usuariosRegistrados.push(nuevoUsuario);
-    localStorage.setItem("usuarios_aventura_db", JSON.stringify(usuariosRegistrados));
+    safeStorageSet("usuarios_aventura_db", usuariosRegistrados);
 
     usuarioActual = {
         nombre: nombre,
@@ -191,26 +246,35 @@ function registrarCliente(event) {
         rol: nuevoUsuario.rol
     };
 
-    localStorage.setItem("usuario_aventura", JSON.stringify(usuarioActual));
+    safeStorageSet("usuario_aventura", usuarioActual);
     cerrarModal("modal-registro");
+    
+    const formReg = document.getElementById("form-registro");
+    if (formReg) formReg.reset();
+
     actualizarVistaSesion();
-    alert(`Usuario ${nombre} (${usuarioActual.rol.toUpperCase()}) registrado e iniciado con éxito.`);
+    alert(`Usuario ${escapeHTML(nombre)} (${usuarioActual.rol.toUpperCase()}) registrado e iniciado con éxito.`);
 }
 
-// INICIO DE SESIÓN
+// Autenticación de Usuario con Verificación de Clave
 function iniciarSesion(event) {
     event.preventDefault();
-    const email = document.getElementById("login-email").value.toLowerCase().trim();
-    const password = document.getElementById("login-password").value;
+    
+    const emailInput = document.getElementById("login-email");
+    const passInput = document.getElementById("login-password");
 
-    if (!password) {
-        alert("Por favor ingrese su contraseña.");
+    if (!emailInput || !passInput) return;
+
+    const email = emailInput.value.toLowerCase().trim();
+    const password = passInput.value;
+
+    if (!email || !password) {
+        alert("Por favor ingrese correo y contraseña.");
         return;
     }
 
-    const usuariosRegistrados = JSON.parse(localStorage.getItem("usuarios_aventura_db")) || [];
+    const usuariosRegistrados = safeStorageGet("usuarios_aventura_db", []);
     const usuarioEncontrado = usuariosRegistrados.find(u => u.email === email);
-
     const esAdminAccesoDirecto = email.includes("admin");
 
     if (usuarioEncontrado) {
@@ -219,37 +283,52 @@ function iniciarSesion(event) {
             return;
         }
         usuarioActual = {
-            nombre: usuarioEncontrado.nombre,
+            nombre: String(usuarioEncontrado.nombre),
             email: usuarioEncontrado.email,
-            rut: usuarioEncontrado.rut,
+            rut: usuarioEncontrado.rut || "Sin RUT",
             rol: usuarioEncontrado.rol
         };
     } else {
         const nombreLimpio = email.split("@")[0];
         usuarioActual = {
-            nombre        : nombreLimpio,
-        email: email,
-        rut: "11.***.***-1",
-        rol: esAdminAccesoDirecto ? "admin" : "cliente"
-    };
-    usuariosRegistrados.push({ ...usuarioActual, password: password });
-    localStorage.setItem("usuarios_aventura_db", JSON.stringify(usuariosRegistrados));
+            nombre: nombreLimpio,
+            email: email,
+            rut: "11.***.***-1",
+            rol: esAdminAccesoDirecto ? "admin" : "cliente"
+        };
+        usuariosRegistrados.push({ ...usuarioActual, password: password });
+        safeStorageSet("usuarios_aventura_db", usuariosRegistrados);
+    }
+
+    safeStorageSet("usuario_aventura", usuarioActual);
+    cerrarModal("modal-login");
+
+    const formLogin = document.getElementById("form-login");
+    if (formLogin) formLogin.reset();
+
+    actualizarVistaSesion();
+    alert(`Bienvenido de nuevo, ${escapeHTML(usuarioActual.nombre)} (${usuarioActual.rol.toUpperCase()}).`);
 }
 
-localStorage.setItem("usuario_aventura", JSON.stringify(usuarioActual));
-cerrarModal("modal-login");
-actualizarVistaSesion();
-alert(`Bienvenido de nuevo, ${usuarioActual.nombre} (${usuarioActual.rol.toUpperCase()}).`);
-}
-
+// Cargar Estado de Sesión al Iniciar
 function cargarEstadoSesion() {
-    const sesionGuardada = localStorage.getItem("usuario_aventura");
-    if (sesionGuardada) {
-        usuarioActual = JSON.parse(sesionGuardada);
+    const sesionGuardada = safeStorageGet("usuario_aventura", null);
+    if (sesionGuardada && sesionGuardada.email) {
+        let nombreNormalizado = sesionGuardada.nombre;
+        if (Array.isArray(nombreNormalizado)) {
+            nombreNormalizado = nombreNormalizado[0] || "Usuario";
+        }
+        usuarioActual = {
+            ...sesionGuardada,
+            nombre: String(nombreNormalizado)
+        };
         actualizarVistaSesion();
+    } else {
+        usuarioActual = null;
     }
 }
 
+// Actualizar Elementos Visuales de Sesión
 function actualizarVistaSesion() {
     const btnLogin = document.getElementById("btn-login");
     const btnRegistro = document.getElementById("btn-registro");
@@ -257,27 +336,23 @@ function actualizarVistaSesion() {
     const adminPanel = document.getElementById("admin-panel");
     const thAcciones = document.getElementById("th-acciones");
 
-    if (usuarioActual) {
+    if (usuarioActual && usuarioActual.email) {
         if (btnLogin) btnLogin.classList.add("hidden");
         if (btnRegistro) btnRegistro.classList.add("hidden");
         if (btnLogout) {
             btnLogout.classList.remove("hidden");
-            btnLogout.textContent = `Cerrar Sesion (${usuarioActual.nombre} - ${usuarioActual.rol.toUpperCase()})`;
+            btnLogout.textContent = `Cerrar Sesión (${usuarioActual.nombre} - ${usuarioActual.rol.toUpperCase()})`;
         }
 
+        const esAdmin = usuarioActual.rol === "admin" || usuarioActual.email.includes("admin");
+
         if (adminPanel) {
-            if (usuarioActual.rol === "admin") {
-                adminPanel.classList.remove("hidden");
-            } else {
-                adminPanel.classList.add("hidden");
-            }
+            if (esAdmin) adminPanel.classList.remove("hidden");
+            else adminPanel.classList.add("hidden");
         }
         if (thAcciones) {
-            if (usuarioActual.rol === "admin") {
-                thAcciones.classList.remove("hidden");
-            } else {
-                thAcciones.classList.add("hidden");
-            }
+            if (esAdmin) thAcciones.classList.remove("hidden");
+            else thAcciones.classList.add("hidden");
         }
     } else {
         if (btnLogin) btnLogin.classList.remove("hidden");
@@ -291,9 +366,219 @@ function actualizarVistaSesion() {
     actualizarTablaReservas();
 }
 
+// Cerrar Sesión
 function cerrarSesion() {
     usuarioActual = null;
     localStorage.removeItem("usuario_aventura");
     actualizarVistaSesion();
-    alert("Sesion cerrada correctamente.");
+    alert("Sesión cerrada correctamente.");
+}
+
+// Funcionalidad Admin: Crear Paquete con Validación Sanitizada
+function crearNuevoPaquete(event) {
+    event.preventDefault();
+
+    const esAdmin = usuarioActual && usuarioActual.email && (usuarioActual.rol === "admin" || usuarioActual.email.includes("admin"));
+    if (!esAdmin) {
+        alert("Acceso denegado: solo administradores pueden crear paquetes.");
+        return;
+    }
+
+    const nombreInput = document.getElementById("admin-paquete-nombre");
+    const fechaInput = document.getElementById("admin-paquete-fecha");
+    const precioInput = document.getElementById("admin-paquete-precio");
+    const cupoInput = document.getElementById("admin-paquete-cupo");
+
+      if (!nombreInput || !fechaInput || !precioInput || !cupoInput) return;
+
+    const nombre = nombreInput.value.trim();
+    const fecha = fechaInput.value;
+    const precio = parseInt(precioInput.value);
+    const cupo = parseInt(cupoInput.value);
+
+    if (!nombre || !fecha || isNaN(precio) || precio <= 0 || isNaN(cupo) || cupo <= 0) {
+        alert("Por favor ingrese valores válidos en todos los campos.");
+        return;
+    }
+
+    const paquetes = obtenerPaquetes();
+    const nuevoId = paquetes.reduce((max, p) => (p.id > max ? p.id : max), 0) + 1;
+
+    const nuevoPaquete = {
+        id: nuevoId,
+        nombre: nombre,
+        fechaSalida: fecha,
+        precio: precio,
+        cupo: cupo
+    };
+
+    paquetes.push(nuevoPaquete);
+    safeStorageSet("paquetes_aventura", paquetes);
+
+    alert(`Paquete "${escapeHTML(nombre)}" creado exitosamente.`);
+    
+    const formNuevo = document.getElementById("form-nuevo-paquete");
+    if (formNuevo) formNuevo.reset();
+
+    cargarCatalogoPaquetes();
+    poblarSelectPaquetes();
+}
+
+// Funcionalidad Admin: Eliminar Paquete
+function eliminarPaquete(idPaquete) {
+    const esAdmin = usuarioActual && usuarioActual.email && (usuarioActual.rol === "admin" || usuarioActual.email.includes("admin"));
+    if (!esAdmin) return;
+
+    if (confirm("¿Esta seguro de que desea eliminar este paquete del catálogo?")) {
+        let paquetes = obtenerPaquetes();
+        paquetes = paquetes.filter(p => parseInt(p.id) !== parseInt(idPaquete));
+        safeStorageSet("paquetes_aventura", paquetes);
+
+        alert("Paquete eliminado del catálogo.");
+        cargarCatalogoPaquetes();
+        poblarSelectPaquetes();
+    }
+}
+
+// Funcionalidad Admin: Eliminar Reserva
+function eliminarReserva(idReserva) {
+    const esAdmin = usuarioActual && usuarioActual.email && (usuarioActual.rol === "admin" || usuarioActual.email.includes("admin"));
+    if (!esAdmin) return;
+
+    if (confirm(`¿Está seguro de cancelar y borrar la Reserva N° ${idReserva}?`)) {
+        let todasLasReservas = safeStorageGet("todas_las_reservas_aventura", []);
+        todasLasReservas = todasLasReservas.filter(r => parseInt(r.id) !== parseInt(idReserva));
+        safeStorageSet("todas_las_reservas_aventura", todasLasReservas);
+
+        alert("Reserva eliminada con éxito.");
+        actualizarTablaReservas();
+    }
+}
+// Emisión Segura de Reserva
+function procesarReserva(event) {
+    event.preventDefault();
+
+    if (!usuarioActual || !usuarioActual.email) {
+        alert("Debe iniciar sesión para poder emitir una reserva.");
+        abrirModal("modal-login");
+        return;
+    }
+
+    const select = document.getElementById("select-paquete");
+    const cantInput = document.getElementById("cant-pasajeros");
+
+    if (!select || !cantInput) return;
+
+    const valPaquete = select.value;
+    if (!valPaquete || valPaquete === "") {
+        alert("Por favor seleccione un paquete turístico de la lista.");
+        return;
+    }
+
+    const idPaquete = parseInt(valPaquete);
+    const cantidad = Math.max(1, parseInt(cantInput.value) || 1);
+
+    if (isNaN(idPaquete)) {
+        alert("Selección de paquete inválida.");
+        return;
+    }
+
+    const paquetes = obtenerPaquetes();
+    const paquete = paquetes.find(p => p.id === idPaquete);
+
+    if (!paquete) {
+        alert("El paquete seleccionado ya no está disponible.");
+        return;
+    }
+
+    try {
+        const todasLasReservas = safeStorageGet("todas_las_reservas_aventura", []);
+        const totalCobrado = paquete.precio * cantidad;
+
+        const idsValidos = todasLasReservas
+            .map(r => parseInt(r.id))
+            .filter(id => !isNaN(id));
+        const nuevoId = idsValidos.length > 0 ? Math.max(...idsValidos) + 1 : 1;
+
+        const nombreCliente = String(usuarioActual.nombre || "Cliente");
+
+        const nuevaReserva = {
+            id: nuevoId,
+            emailCliente: usuarioActual.email.toLowerCase().trim(),
+            cliente: nombreCliente,
+            paquete: paquete.nombre,
+            pasajeros: cantidad,
+            total: totalCobrado,
+            estado: "Confirmada"
+        };
+
+        todasLasReservas.push(nuevaReserva);
+        safeStorageSet("todas_las_reservas_aventura", todasLasReservas);
+
+        actualizarTablaReservas();
+
+        alert(`¡Reserva N° ${nuevaReserva.id} emitida con éxito!
+Monto Total: $${Number(totalCobrado).toLocaleString("es-CL")} CLP`);
+
+        const formReserva = document.getElementById("form-reserva");
+        if (formReserva) formReserva.reset();
+
+        calcularTotalReserva();
+    } catch (error) {
+        console.error("Error en procesarReserva:", error);
+        alert("Ocurrió un error al guardar la reserva. Intente de nuevo.");
+    }
+}
+
+// Historial de Reservas con Filtrado Estricto de Roles y Sanitización
+function actualizarTablaReservas() {
+    const tbody = document.getElementById("tabla-reservas-body");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    if (!usuarioActual || !usuarioActual.email) {
+        tbody.innerHTML = `
+            Inicie sesión para ver el historial de reservas.
+        `;
+        return;
+    }
+
+    const todasLasReservas = safeStorageGet("todas_las_reservas_aventura", []);
+    const emailActual = usuarioActual.email.toLowerCase().trim();
+    const esAdmin = usuarioActual.rol === "admin" || emailActual.includes("admin");
+
+    let reservasAVisibilizar = [];
+    if (esAdmin) {
+        // Visibilidad completa para el Administrador
+        reservasAVisibilizar = todasLasReservas;
+    } else {
+        // Filtrado estricto por correo de cliente
+        reservasAVisibilizar = todasLasReservas.filter(r => 
+            r.emailCliente && String(r.emailCliente).toLowerCase().trim() === emailActual
+        );
+    }
+
+    if (reservasAVisibilizar.length === 0) {
+        tbody.innerHTML = `
+            ${esAdmin ? "No hay reservas registradas en el sistema." : "No registra reservas emitidas en su cuenta."}
+        `;
+        return;
+    }
+
+    reservasAVisibilizar.forEach(res => {
+        const row = document.createElement("tr");
+
+        const infoCliente = esAdmin && res.emailCliente ? `<br /><small>(${escapeHTML(res.emailCliente)})</small>` : '';
+        const tdAccionAdmin = esAdmin ? `` : '';
+
+             row.innerHTML = `
+            #${parseInt(res.id)}
+            ${escapeHTML(res.paquete)}${infoCliente}
+            ${parseInt(res.pasajeros)} persona(s)
+            $${Number(res.total).toLocaleString("es-CL")} CLP
+            <strong>${escapeHTML(res.estado || 'Confirmada')}</strong>
+            ${tdAccionAdmin}
+        `;
+        tbody.appendChild(row);
+    });
 }
