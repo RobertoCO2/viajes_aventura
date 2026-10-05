@@ -1,3 +1,4 @@
+
 import sys
 import time
 from datetime import date, datetime, timedelta
@@ -12,9 +13,15 @@ except ImportError:
     import getpass
 
 
-def leer_clave_enmascarada(prompt: str = "Contrasena: ") -> str:
-    """Lee la clave caracter por caracter: muestra la letra por 0.3s y la cambia a '#'."""
+def leer_clave_enmascarada(prompt: str = "Contraseña: ") -> str:
+    """
+    Lee la clave caracter por caracter:
+    - Muestra la letra por 0.3s
+    - Luego la reemplaza por '#'
+    - Compatible con Windows (msvcrt) y otros sistemas (getpass)
+    """
     if not HAS_MSVCRT:
+        # En Linux/Mac se usa getpass (no muestra nada)
         return getpass.getpass(prompt)
 
     sys.stdout.write(prompt)
@@ -36,7 +43,7 @@ def leer_clave_enmascarada(prompt: str = "Contrasena: ") -> str:
                 sys.stdout.write("\b \b")
                 sys.stdout.flush()
 
-        # Printables
+        # Caracter imprimible
         elif ch >= b' ':
             try:
                 char = ch.decode('utf-8')
@@ -51,6 +58,30 @@ def leer_clave_enmascarada(prompt: str = "Contrasena: ") -> str:
 
     return clave
 
+def login_cliente():
+    correo = input("Correo: ")
+    clave = leer_clave_enmascarada("Clave: ")
+    # Validación contra la base de datos
+    cliente = BaseDatos.buscar_cliente(correo, clave)
+    if cliente:
+        print("Ingreso exitoso como Cliente")
+        return cliente
+    else:
+        print("Correo o clave incorrectos")
+        return None
+
+
+def login_administrador():
+    correo = input("Correo: ")
+    clave = leer_clave_enmascarada("Clave: ")
+    # Validación contra la base de datos
+    admin = BaseDatos.buscar_administrador(correo, clave)
+    if admin:
+        print("Bienvenido Administrador")
+        return admin
+    else:
+        print("Credenciales inválidas")
+        return None
 
 def inicializar_datos_demo(db: BaseDatos):
     destinos = db.obtener_todos_los_destinos()
